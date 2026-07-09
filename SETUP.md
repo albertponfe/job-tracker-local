@@ -104,13 +104,7 @@ Only **Company** is required; everything else is yours to shape.
 | Problem | Fix |
 |---|---|
 | Browser didn't open | Go to **http://localhost:3000** manually. |
-| Website not opening after double click | ### If Mac says `start-mac.command` cannot be opened
-
-This is a normal Mac security warning. Since `start-mac.command` was downloaded, Apple blocks it until you approve it.
-
-Click **Done** instead of **Move to Trash**. Then open **System Settings → Privacy & Security**, scroll down until you see the message that `start-mac.command` was blocked, and click **Open Anyway**. After that, double-click `start-mac.command` again and choose **Open** when Mac asks.
-
-Or go to [Quick start](./README.md#quick-start-one-double-click) and open from Terminal manually. |
+| Website not opening after double click | This is a normal Mac security warning. Since `start-mac.command` was downloaded, Apple blocks it until you approve it. Click **Done** instead of **Move to Trash**. Then open **System Settings → Privacy & Security**, scroll down until you see the message that `start-mac.command` was blocked, and click **Open Anyway**. After that, double-click `start-mac.command` again and choose **Open** when Mac asks. Or go to [Quick start](./README.md#quick-start-one-double-click) and open from Terminal manually. |
 | "Node.js is needed" keeps showing | After installing Node, fully close the window and start again (it needs a fresh window to see Node). |
 | Port 3000 already in use | Set a different port: create a file named `.env` with `PORT=3001` inside. |
 | Extract says a site is blocked | That job board blocks bots — use the direct application (ATS) link, or type it in. |
