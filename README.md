@@ -34,6 +34,7 @@ npm start       # builds and runs — opens http://localhost:3000
 ```
 
 👉 New to this? See **[SETUP.md](SETUP.md)** for a step-by-step, plain-English guide.
+⚠️ Came across an error? See the section **[Troubleshooting](#Troubleshooting)**.
 
 ## Your data & privacy
 
@@ -58,6 +59,19 @@ Now the **Extract** button auto-fills a job's details from its link — with not
 **⚙ Settings → Import / Export** takes a view-shared sheet link and shows a **column-mapping**
 step: your headers don't need to match — map each column to a field, create a new one, or ignore it.
 Nothing is imported until you confirm, so nothing is lost or misplaced.
+
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Browser didn't open | Go to **http://localhost:3000** manually. |
+| "Node.js is needed" keeps showing | After installing Node, fully close the window and start again (it needs a fresh window to see Node). |
+| Port 3000 already in use | Set a different port: create a file named `.env` with `PORT=3001` inside. |
+| Extract says a site is blocked | That job board blocks bots — use the direct application (ATS) link, or type it in. |
+| Ollama "not running" | Make sure the Ollama app is installed and open, then click **Check again**. |
+
+---
 
 ## License
 
