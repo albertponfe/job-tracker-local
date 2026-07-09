@@ -29,6 +29,8 @@ That's it. The first run sets everything up and then your browser opens at
 
 **To stop:** close the black window. **To reopen later:** double-click the start file again.
 
+⚠️ Came across an error? See **[Troubleshooting](#Troubleshooting)**.
+
 ---
 
 ## Step 3 — Use it
