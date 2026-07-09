@@ -108,6 +108,7 @@ Only **Company** is required; everything else is yours to shape.
 | Port 3000 already in use | Set a different port: create a file named `.env` with `PORT=3001` inside. |
 | Extract says a site is blocked | That job board blocks bots — use the direct application (ATS) link, or type it in. |
 | Ollama "not running" | Make sure the Ollama app is installed and open, then click **Check again**. |
+| Something else!| Contact me at **albertponferrada@berkeley.edu**. |
 
 ---
 
