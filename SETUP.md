@@ -104,7 +104,7 @@ Only **Company** is required; everything else is yours to shape.
 | Problem | Fix |
 |---|---|
 | Browser didn't open | Go to **http://localhost:3000** manually. |
-| Website not opening after double click | Go to [Quick start](./README.md#quick-start) and open from termiunal manually. |
+| Website not opening after double click | Go to [Quick start](./README.md#quick-start) and open from terminal manually. |
 | "Node.js is needed" keeps showing | After installing Node, fully close the window and start again (it needs a fresh window to see Node). |
 | Port 3000 already in use | Set a different port: create a file named `.env` with `PORT=3001` inside. |
 | Extract says a site is blocked | That job board blocks bots — use the direct application (ATS) link, or type it in. |
