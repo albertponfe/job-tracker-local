@@ -1,4 +1,5 @@
 const STATUS_STYLES = {
+  'To Apply': { bg: 'rgba(6,182,212,0.14)',   color: '#22d3ee', border: 'rgba(6,182,212,0.35)' },
   Applied:   { bg: 'rgba(99,102,241,0.14)',  color: '#818cf8', border: 'rgba(99,102,241,0.35)' },
   Interview: { bg: 'rgba(245,158,11,0.14)',  color: '#fbbf24', border: 'rgba(245,158,11,0.35)' },
   Offer:     { bg: 'rgba(16,185,129,0.14)',  color: '#34d399', border: 'rgba(16,185,129,0.35)' },

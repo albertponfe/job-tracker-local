@@ -13,7 +13,11 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
   for (const f of enabled) {
     const existing = initialData?.[f.key]
     if (existing != null && existing !== '') init[f.key] = existing
-    else if (f.type === 'select') init[f.key] = (f.options && f.options[0]) || '' // default to first option, not blank
+    else if (f.type === 'select') {
+      const opts = f.options || []
+      // new entries default to "Applied" (the common case); other selects use their first option
+      init[f.key] = (f.key === 'status' && opts.includes('Applied')) ? 'Applied' : (opts[0] || '')
+    }
     else if (f.key === 'date') init[f.key] = today // sensible default for new entries
     else init[f.key] = ''
   }

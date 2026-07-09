@@ -34,7 +34,7 @@ const DEFAULT_CONFIG = {
     { key: 'location',       label: 'Location',      type: 'text',     enabled: true,  table: true },
     { key: 'salary',         label: 'Salary',        type: 'text',     enabled: true,  table: true },
     { key: 'status',         label: 'Status',        type: 'select',   enabled: true,  table: true,
-      options: ['Applied', 'Interview', 'Offer', 'Rejected', 'Ghosted', 'Withdrawn'] },
+      options: ['To Apply', 'Applied', 'Interview', 'Offer', 'Rejected', 'Ghosted', 'Withdrawn'] },
     { key: 'employmentType', label: 'Type',          type: 'text',     enabled: true,  table: true },
     { key: 'url',            label: 'Job Link',      type: 'url',      enabled: true,  table: true },
     { key: 'contactName',    label: 'Contact',       type: 'text',     enabled: false, table: true },

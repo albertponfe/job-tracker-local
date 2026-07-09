@@ -1,5 +1,6 @@
 const CARD_ACCENT = {
   Total:     '#818cf8',
+  'To Apply': '#22d3ee',
   Applied:   '#818cf8',
   Interview: '#fbbf24',
   Offer:     '#34d399',
