@@ -25,7 +25,7 @@ file on your machine (`data/applications.json`).
 The first run installs everything, then opens the app at **http://localhost:3000**.
 Close the window to stop; double-click again to reopen.
 
-**Developers**, in a terminal instead:
+**Developers**, in a terminal go inside the downloaded folder and run:
 Mac Users:
 ```bash
 cd Downloads/job-tracker-local-main #Change it accordingly for the location of the file (ex: Desktop/...)
