@@ -26,13 +26,14 @@ The first run installs everything, then opens the app at **http://localhost:3000
 Close the window to stop; double-click again to reopen.
 
 **Developers**, in a terminal go inside the downloaded folder and run:
-Mac Users:
+
 ```bash
 cd Downloads/job-tracker-local-main #Change it accordingly for the location of the file (ex: Desktop/...)
 npm install     # first time only
 npm start       # builds and runs — opens http://localhost:3000
 # npm run dev   # hot-reload dev server on :5173 (proxies API to :3000)
 ```
+Opens the app at **http://localhost:3000**.
 
 👉 New to this? See **[SETUP.md](SETUP.md)** for a step-by-step, plain-English guide.
 
