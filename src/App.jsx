@@ -24,22 +24,23 @@ export default function App() {
     setTimeout(() => setError(null), 4500)
   }, [])
 
-  const load = useCallback(async () => {
+  // silent = refresh data without flashing the full-screen loader (keeps modals mounted)
+  const load = useCallback(async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const [cfg, apps] = await Promise.all([api.getConfig(), api.getApplications()])
       setConfig(cfg)
       setApplications(apps.applications || [])
     } catch {
       setError('Could not reach the local server. Make sure it is running (npm start).')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const handleSaved = () => { setShowForm(false); setEditApp(null); load() }
+  const handleSaved = () => { setShowForm(false); setEditApp(null); load(true) }
 
   const handleStatusChange = async (id, status) => {
     const prev = applications
@@ -62,7 +63,7 @@ export default function App() {
     catch { setApplications(prev); flashError('Could not delete.') }
   }
 
-  const handleConfigSaved = (cfg) => { setConfig(cfg); load() }
+  const handleConfigSaved = (cfg) => { setConfig(cfg); load(true) }
 
   if (loading || !config) {
     return (

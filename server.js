@@ -394,8 +394,9 @@ app.post('/api/import/gsheet', async (req, res) => {
       const t = map[i]
       if (t === '__new__') {
         const label = String(h || '').trim() || `Field ${i + 1}`
+        const reserved = ['id', 'createdat', 'archived'] // system props on every record
         let key = slugKey(label) || `field_${i}`
-        if (cfg.fields.some(f => f.key === key)) key = `${key}_${i}`
+        if (reserved.includes(key) || cfg.fields.some(f => f.key === key)) key = `${key}_${i}`
         cfg.fields.push({ key, label, type: 'text', enabled: true, table: true, custom: true })
         fieldsChanged = true
         targets[i] = key
