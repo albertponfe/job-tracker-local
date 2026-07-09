@@ -28,6 +28,7 @@ const PORT = process.env.PORT || 3000
 // ── Default configuration (fields the user can toggle, + AI settings) ──
 const DEFAULT_CONFIG = {
   fields: [
+    { key: 'date',           label: 'Date',          type: 'text',     enabled: true,  table: true },
     { key: 'company',        label: 'Company',       type: 'text',     enabled: true,  table: true, core: true },
     { key: 'position',       label: 'Position',      type: 'text',     enabled: true,  table: true },
     { key: 'location',       label: 'Location',      type: 'text',     enabled: true,  table: true },
@@ -292,13 +293,54 @@ function parseCSV(text) {
 }
 
 const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+const slugKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 
-app.post('/api/import/gsheet', async (req, res) => {
-  const { url } = req.body || {}
-  if (!url) return res.status(400).json({ error: 'Paste your Google Sheet link.' })
+// Best-guess mapping of a sheet column header to a known field key (Part B:
+// exact match → alias table → fuzzy "contains"). Returns a field key or null.
+function guessField(header, fields) {
+  const h = norm(header)
+  if (!h) return null
 
+  // 1) exact match on a field's key or label
+  for (const f of fields) if (norm(f.key) === h || norm(f.label) === h) return f.key
+
+  // 2) explicit aliases (exact, normalized)
+  const aliases = {
+    company: 'company', employer: 'company', organization: 'company', organisation: 'company', companyname: 'company',
+    position: 'position', role: 'position', jobtitle: 'position', title: 'position', job: 'position',
+    location: 'location', city: 'location', place: 'location', where: 'location',
+    salary: 'salary', pay: 'salary', compensation: 'salary', comp: 'salary', wage: 'salary', salaryrange: 'salary',
+    status: 'status', stage: 'status', progress: 'status', state: 'status',
+    type: 'employmentType', jobtype: 'employmentType', employmenttype: 'employmentType', employment: 'employmentType',
+    url: 'url', link: 'url', joblink: 'url', joburl: 'url', posting: 'url', jobposting: 'url', applicationlink: 'url',
+    contact: 'contactName', contactname: 'contactName', recruiter: 'contactName', hiringmanager: 'contactName', poc: 'contactName',
+    email: 'contactEmail', contactemail: 'contactEmail', emailaddress: 'contactEmail',
+    date: 'date', dateapplied: 'date', applieddate: 'date', appliedon: 'date', dateofapplication: 'date', applied: 'date',
+    notes: 'notes', note: 'notes', comments: 'notes', comment: 'notes', details: 'notes',
+  }
+  if (aliases[h] && fields.some(f => f.key === aliases[h])) return aliases[h]
+
+  // 3) fuzzy "contains" — order matters (most specific first)
+  const has = (...subs) => subs.some(s => h.includes(s))
+  let key = null
+  if (has('email')) key = 'contactEmail'
+  else if (has('link', 'url', 'posting')) key = 'url'
+  else if (has('salary', 'pay', 'wage', 'comp')) key = 'salary'
+  else if (has('employer', 'company', 'organiz', 'organis')) key = 'company'
+  else if (has('title', 'role', 'position')) key = 'position'
+  else if (has('location', 'city', 'remote', 'where')) key = 'location'
+  else if (has('status', 'stage', 'progress')) key = 'status'
+  else if (has('type', 'employ')) key = 'employmentType'
+  else if (has('recruiter', 'contact', 'hiring', 'manager')) key = 'contactName'
+  else if (has('date', 'applied', 'when')) key = 'date'
+  else if (has('note', 'comment', 'detail')) key = 'notes'
+  return (key && fields.some(f => f.key === key)) ? key : null
+}
+
+// Fetch + parse a public Google Sheet as CSV. Throws { status, message, detail }.
+async function fetchSheetCsv(url) {
   const idMatch = String(url).match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
-  if (!idMatch) return res.status(400).json({ error: "That doesn't look like a Google Sheets link." })
+  if (!idMatch) throw { status: 400, message: "That doesn't look like a Google Sheets link." }
   const id = idMatch[1]
   const gidMatch = String(url).match(/[#&?]gid=([0-9]+)/)
   const gid = gidMatch ? gidMatch[1] : '0'
@@ -309,43 +351,119 @@ app.post('/api/import/gsheet', async (req, res) => {
     const r = await fetch(csvUrl, { redirect: 'follow', signal: AbortSignal.timeout(15000) })
     csv = await r.text()
     if (!r.ok || /<html|accounts\.google\.com|sign in/i.test(csv.slice(0, 500))) {
-      return res.status(422).json({
-        error: "Couldn't read the sheet. In Google Sheets, click Share → General access → 'Anyone with the link' → Viewer, then try again.",
-      })
+      throw { status: 422, message: "Couldn't read the sheet. In Google Sheets: Share → General access → 'Anyone with the link' → Viewer, then try again." }
     }
   } catch (e) {
-    return res.status(422).json({ error: 'Could not reach the sheet.', detail: String(e.message || e) })
+    if (e.status) throw e
+    throw { status: 422, message: 'Could not reach the sheet.', detail: String(e.message || e) }
   }
 
   const rows = parseCSV(csv)
-  if (rows.length < 2) return res.status(422).json({ error: 'The sheet appears to be empty.' })
+  if (rows.length < 2) throw { status: 422, message: 'The sheet has no data rows.' }
+  return { headers: rows[0], rows: rows.slice(1) }
+}
 
-  const headers = rows[0]
-  const cfg = await readConfig()
-
-  // Map each sheet column to a known field key by matching header text to labels/keys.
-  const fieldByNorm = {}
-  for (const f of cfg.fields) { fieldByNorm[norm(f.label)] = f.key; fieldByNorm[norm(f.key)] = f.key }
-  const aliases = { jobtitle: 'position', role: 'position', title: 'position', link: 'url', joblink: 'url', joburl: 'url', pay: 'salary', compensation: 'salary', type: 'employmentType', jobtype: 'employmentType', stage: 'status', contact: 'contactName', email: 'contactEmail', appliedon: 'date', dateapplied: 'date' }
-  const colKey = headers.map(h => fieldByNorm[norm(h)] || aliases[norm(h)] || null)
-
-  const now = new Date()
-  const imported = rows.slice(1).map(r => {
-    const rec = { id: randomUUID(), createdAt: now.toISOString(), archived: false }
-    let any = false
-    colKey.forEach((k, i) => { if (k && r[i] != null && String(r[i]).trim() !== '') { rec[k] = String(r[i]).trim(); any = true } })
-    if (!rec.date) rec.date = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-    if (!rec.status) rec.status = 'Applied'
-    return any ? rec : null
-  }).filter(Boolean)
-
-  if (imported.length === 0) {
-    return res.status(422).json({ error: 'No rows matched. Make sure the first row has column headers like Company, Position, Status, etc.' })
+// Step 1: preview the sheet + a best-guess column mapping (no import yet).
+app.post('/api/import/gsheet/preview', async (req, res) => {
+  const { url } = req.body || {}
+  if (!url) return res.status(400).json({ error: 'Paste your Google Sheet link.' })
+  try {
+    const { headers, rows } = await fetchSheetCsv(url)
+    const cfg = await readConfig()
+    const autoMap = headers.map(h => guessField(h, cfg.fields) || '')
+    res.json({ headers, sampleRows: rows.slice(0, 3), rowCount: rows.length, autoMap })
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Preview failed', detail: e.detail })
   }
+})
 
-  const apps = await readApps()
-  await writeApps([...apps, ...imported])
-  res.json({ imported: imported.length, unmatchedColumns: headers.filter((_, i) => !colKey[i]) })
+// Step 2: import using a user-confirmed mapping (array aligned to headers).
+// Each entry is a field key, '__ignore__', or '__new__' (create a custom field).
+app.post('/api/import/gsheet', async (req, res) => {
+  const { url, mapping } = req.body || {}
+  if (!url) return res.status(400).json({ error: 'Paste your Google Sheet link.' })
+  try {
+    const { headers, rows } = await fetchSheetCsv(url)
+    const cfg = await readConfig()
+    const map = Array.isArray(mapping) ? mapping : headers.map(h => guessField(h, cfg.fields) || '__ignore__')
+
+    // Resolve each column to a stored field key (creating custom fields for __new__)
+    const targets = []
+    let fieldsChanged = false
+    headers.forEach((h, i) => {
+      const t = map[i]
+      if (t === '__new__') {
+        const label = String(h || '').trim() || `Field ${i + 1}`
+        let key = slugKey(label) || `field_${i}`
+        if (cfg.fields.some(f => f.key === key)) key = `${key}_${i}`
+        cfg.fields.push({ key, label, type: 'text', enabled: true, table: true, custom: true })
+        fieldsChanged = true
+        targets[i] = key
+      } else if (!t || t === '__ignore__') {
+        targets[i] = null
+      } else {
+        targets[i] = cfg.fields.some(f => f.key === t) ? t : null
+      }
+    })
+
+    const statusField = cfg.fields.find(f => f.key === 'status')
+    const defaultStatus = statusField?.options?.[0] || 'Applied'
+    const now = new Date()
+
+    const imported = rows.map(r => {
+      const rec = { id: randomUUID(), createdAt: now.toISOString(), archived: false }
+      let any = false
+      targets.forEach((key, i) => {
+        if (key && r[i] != null && String(r[i]).trim() !== '') { rec[key] = String(r[i]).trim(); any = true }
+      })
+      if (!rec.date) rec.date = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+      if (cfg.fields.some(f => f.key === 'status') && !rec.status) rec.status = defaultStatus
+      return any ? rec : null
+    }).filter(Boolean)
+
+    if (imported.length === 0) return res.status(422).json({ error: 'No rows to import — check your column mapping.' })
+
+    if (fieldsChanged) await writeConfig(cfg)
+    const apps = await readApps()
+    await writeApps([...apps, ...imported])
+    res.json({ imported: imported.length, fieldsAdded: fieldsChanged })
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Import failed', detail: e.detail })
+  }
+})
+
+// ─────────────── Ollama helpers (terminal-free local AI setup) ────────────
+
+// Is Ollama running, and which models are installed?
+app.get('/api/ai/ollama-status', async (req, res) => {
+  const base = String(req.query.baseUrl || 'http://localhost:11434').replace(/\/$/, '')
+  try {
+    const r = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3000) })
+    if (!r.ok) throw new Error('bad status')
+    const d = await r.json()
+    res.json({ running: true, models: (d.models || []).map(m => m.name) })
+  } catch {
+    res.json({ running: false, models: [] })
+  }
+})
+
+// Start downloading a model in the background (via Ollama's HTTP API, so we
+// don't depend on the CLI being on PATH). Returns immediately; the client polls
+// ollama-status to see when the model appears.
+app.post('/api/ai/ollama-pull', async (req, res) => {
+  const base = String(req.body?.baseUrl || 'http://localhost:11434').replace(/\/$/, '')
+  const model = String(req.body?.model || 'llama3.2').trim()
+  try {
+    // fire-and-forget: don't await the (large) download
+    fetch(`${base}/api/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: model, stream: false }),
+    }).catch(() => {})
+    res.json({ started: true, model })
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) })
+  }
 })
 
 // ─────────────────────────── Static app + fallback ───────────────────────

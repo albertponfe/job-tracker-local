@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
 
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
@@ -18,6 +18,73 @@ function download(name, text, type) {
   URL.revokeObjectURL(url)
 }
 
+// ── In-app Ollama setup: detect → download model → ready, no terminal needed ──
+function OllamaSetup({ ai, setAi }) {
+  const [state, setState] = useState({ checked: false, running: false, models: [] })
+  const [checking, setChecking] = useState(false)
+  const [pullStarted, setPullStarted] = useState(false)
+  const wantModel = ai.model || 'llama3.2'
+  const base = ai.baseUrl || 'http://localhost:11434'
+
+  const check = async () => {
+    setChecking(true)
+    try {
+      const s = await api.ollamaStatus(base)
+      setState({ checked: true, running: s.running, models: s.models })
+    } catch {
+      setState({ checked: true, running: false, models: [] })
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  // auto-check when this panel first appears
+  useEffect(() => { check() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const modelReady = state.models.some(m => m === wantModel || m.split(':')[0] === wantModel.split(':')[0])
+
+  const pull = async () => {
+    setPullStarted(true)
+    try { await api.ollamaPull(base, wantModel) } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="ollama-box">
+      {!state.checked ? (
+        <p className="hint-line">Checking for Ollama…</p>
+      ) : !state.running ? (
+        <>
+          <p className="ollama-status ollama-status--off">● Ollama isn't running on this computer yet.</p>
+          <p className="hint-line">Install it once (free, a few minutes). Everything stays on your machine — nothing is uploaded.</p>
+          <div className="export-row">
+            <a className="btn-primary" href="https://ollama.com/download" target="_blank" rel="noopener">↗ Download Ollama</a>
+            <button className="btn-ghost" onClick={check} disabled={checking}>{checking ? 'Checking…' : '↻ Check again'}</button>
+          </div>
+        </>
+      ) : modelReady ? (
+        <>
+          <p className="ollama-status ollama-status--on">● Ready — Ollama is running and “{wantModel}” is installed.</p>
+          <p className="hint-line">Click <b>Save settings</b> below and the ✦ Extract button will auto-fill jobs from a link.</p>
+          <button className="btn-ghost" onClick={check} disabled={checking}>{checking ? 'Refreshing…' : '↻ Refresh'}</button>
+        </>
+      ) : (
+        <>
+          <p className="ollama-status ollama-status--on">● Ollama is running. One more step — download the model:</p>
+          <div className="export-row">
+            <button className="btn-primary" onClick={pull} disabled={pullStarted}>
+              {pullStarted ? 'Downloading…' : `⬇ Download “${wantModel}” (~2 GB)`}
+            </button>
+            <button className="btn-ghost" onClick={check} disabled={checking}>{checking ? 'Checking…' : '↻ Check again'}</button>
+          </div>
+          {pullStarted && (
+            <p className="hint-line">Downloading in the background — this can take a few minutes. Click <b>↻ Check again</b> to see when it's ready.</p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsModal({ config, onClose, onSaved, onError }) {
   const [tab, setTab] = useState('fields')
   const [fields, setFields] = useState(config.fields.map(f => ({ ...f })))
@@ -25,7 +92,11 @@ export default function SettingsModal({ config, onClose, onSaved, onError }) {
   const [newField, setNewField] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // import flow
   const [sheetUrl, setSheetUrl] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [mapping, setMapping] = useState([])
+  const [previewing, setPreviewing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState(null)
 
@@ -55,19 +126,42 @@ export default function SettingsModal({ config, onClose, onSaved, onError }) {
     }
   }
 
-  const runImport = async () => {
+  // ── Import: step 1 (preview) ──
+  const runPreview = async () => {
     if (!sheetUrl.trim()) return
+    setPreviewing(true); setImportMsg(null)
+    try {
+      const p = await api.previewGSheet(sheetUrl.trim())
+      setPreview(p)
+      setMapping(p.headers.map((h, i) => p.autoMap[i] || (String(h).trim() ? '__new__' : '__ignore__')))
+    } catch (e) {
+      setImportMsg({ type: 'err', text: e.message })
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
+  // ── Import: step 2 (confirm with mapping) ──
+  const runImport = async () => {
     setImporting(true); setImportMsg(null)
     try {
-      const r = await api.importGSheet(sheetUrl.trim())
-      setImportMsg({ type: 'ok', text: `Imported ${r.imported} application${r.imported !== 1 ? 's' : ''}.` +
-        (r.unmatchedColumns?.length ? ` (Ignored unknown columns: ${r.unmatchedColumns.join(', ')})` : '') })
-      onSaved(config) // triggers a data reload in the app
+      const r = await api.importGSheet(sheetUrl.trim(), mapping)
+      const fresh = await api.getConfig()      // pick up any newly-created fields
+      setFields(fresh.fields.map(f => ({ ...f })))
+      setImportMsg({ type: 'ok', text: `Imported ${r.imported} application${r.imported !== 1 ? 's' : ''}.${r.fieldsAdded ? ' New columns were added to your table.' : ''}` })
+      setPreview(null); setSheetUrl('')
+      onSaved(fresh)                            // reload the main list
     } catch (e) {
       setImportMsg({ type: 'err', text: e.message })
     } finally {
       setImporting(false)
     }
+  }
+
+  const setMap = (i, val) => setMapping(m => m.map((v, idx) => (idx === i ? val : v)))
+  const sampleFor = (i) => {
+    const vals = (preview?.sampleRows || []).map(r => r[i]).filter(v => v && String(v).trim())
+    return vals.length ? vals.slice(0, 2).join(' · ') : '—'
   }
 
   const exportData = async (kind) => {
@@ -137,8 +231,8 @@ export default function SettingsModal({ config, onClose, onSaved, onError }) {
         {tab === 'ai' && (
           <div className="tab-body">
             <p className="tab-intro">
-              AI is optional. It only powers the <b>Extract</b> button that auto-fills a job's details from its link.
-              For a free option that never leaves your computer, install <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> and choose it below.
+              AI is optional — it only powers the ✦ <b>Extract</b> button that auto-fills a job's details from its link.
+              The easiest free option is <b>Ollama</b>, which runs on your own computer.
             </p>
             <div className="field">
               <label>Provider</label>
@@ -149,13 +243,16 @@ export default function SettingsModal({ config, onClose, onSaved, onError }) {
 
             {ai.provider === 'ollama' && (
               <>
-                <div className="field"><label>Model</label>
-                  <input className="input" value={ai.model} placeholder="llama3.2"
-                    onChange={e => setAi(a => ({ ...a, model: e.target.value }))} /></div>
-                <div className="field"><label>Ollama URL</label>
-                  <input className="input" value={ai.baseUrl} placeholder="http://localhost:11434"
-                    onChange={e => setAi(a => ({ ...a, baseUrl: e.target.value }))} /></div>
-                <p className="hint-line">Install Ollama, then in a terminal run <code>ollama pull llama3.2</code>. No account, no cost, nothing leaves your machine.</p>
+                <OllamaSetup ai={ai} setAi={setAi} />
+                <details className="advanced">
+                  <summary>Advanced</summary>
+                  <div className="field" style={{ marginTop: '.8rem' }}><label>Model</label>
+                    <input className="input" value={ai.model} placeholder="llama3.2"
+                      onChange={e => setAi(a => ({ ...a, model: e.target.value }))} /></div>
+                  <div className="field"><label>Ollama URL</label>
+                    <input className="input" value={ai.baseUrl} placeholder="http://localhost:11434"
+                      onChange={e => setAi(a => ({ ...a, baseUrl: e.target.value }))} /></div>
+                </details>
               </>
             )}
 
@@ -185,31 +282,70 @@ export default function SettingsModal({ config, onClose, onSaved, onError }) {
               </>
             )}
 
-            <p className="hint-line">Your key is stored only in <code>data/config.json</code> on your computer, which is git-ignored. It is never sent anywhere except to the provider you choose.</p>
+            <p className="hint-line">Any key you enter is stored only in <code>data/config.json</code> on your computer (git-ignored) and is sent only to the provider you pick.</p>
           </div>
         )}
 
-        {/* ── DATA ── */}
+        {/* ── DATA (import / export) ── */}
         {tab === 'data' && (
           <div className="tab-body">
-            <p className="tab-intro">Already have a Google Sheet of applications? Import it once — the data is then yours, locally.</p>
-            <div className="field">
-              <label>Google Sheet link</label>
-              <input className="input" placeholder="https://docs.google.com/spreadsheets/d/…"
-                value={sheetUrl} onChange={e => setSheetUrl(e.target.value)} />
-            </div>
-            <p className="hint-line">First, in Google Sheets: <b>Share → General access → “Anyone with the link” → Viewer</b>. Give your columns clear headers (Company, Position, Status, Salary, Location, Job Link…). Then paste the link and import.</p>
-            <button className="btn-primary" onClick={runImport} disabled={importing || !sheetUrl.trim()}>
-              {importing ? 'Importing…' : 'Import from Google Sheet'}
-            </button>
-            {importMsg && <p className={importMsg.type === 'ok' ? 'extract-success' : 'extract-error'} style={{ marginTop: '.8rem' }}>{importMsg.text}</p>}
+            {!preview ? (
+              <>
+                <p className="tab-intro">Already have a Google Sheet of applications? Bring it in once — the data then lives on your machine.</p>
+                <div className="field">
+                  <label>Google Sheet link</label>
+                  <input className="input" placeholder="https://docs.google.com/spreadsheets/d/…"
+                    value={sheetUrl} onChange={e => setSheetUrl(e.target.value)} />
+                </div>
+                <p className="hint-line">In Google Sheets: <b>Share → General access → “Anyone with the link” → Viewer</b>. Column names don't need to match — you'll map them in the next step.</p>
+                <button className="btn-primary" onClick={runPreview} disabled={previewing || !sheetUrl.trim()}>
+                  {previewing ? 'Reading sheet…' : 'Preview & map columns →'}
+                </button>
+                {importMsg && <p className={importMsg.type === 'ok' ? 'extract-success' : 'extract-error'} style={{ marginTop: '.8rem' }}>{importMsg.text}</p>}
 
-            <hr className="divider" />
-            <p className="tab-intro">Export a backup of everything (your data never leaves your machine unless you share these files).</p>
-            <div className="export-row">
-              <button className="btn-ghost" onClick={() => exportData('csv')}>⬇ Export CSV</button>
-              <button className="btn-ghost" onClick={() => exportData('json')}>⬇ Export JSON</button>
-            </div>
+                <hr className="divider" />
+                <p className="tab-intro">Export a backup of everything (nothing leaves your machine unless you share the file).</p>
+                <div className="export-row">
+                  <button className="btn-ghost" onClick={() => exportData('csv')}>⬇ Export CSV</button>
+                  <button className="btn-ghost" onClick={() => exportData('json')}>⬇ Export JSON</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="tab-intro">
+                  Found <b>{preview.rowCount}</b> row{preview.rowCount !== 1 ? 's' : ''}. We guessed where each column goes — fix anything wrong.
+                  Nothing is imported until you click Import.
+                </p>
+                <div className="map-list">
+                  <div className="map-row map-row--head">
+                    <span>Your column</span><span></span><span>Goes to</span>
+                  </div>
+                  {preview.headers.map((h, i) => (
+                    <div className="map-row" key={i}>
+                      <div className="map-col">
+                        <span className="map-col-name">{h || <em className="td-muted">(no header)</em>}</span>
+                        <span className="map-col-sample">{sampleFor(i)}</span>
+                      </div>
+                      <span className="map-arrow">→</span>
+                      <select className="input map-select" value={mapping[i]} onChange={e => setMap(i, e.target.value)}>
+                        <option value="__new__">➕ Create new field “{h || `Column ${i + 1}`}”</option>
+                        <option value="__ignore__">🚫 Ignore this column</option>
+                        <optgroup label="Map to existing field">
+                          {fields.map(f => <option key={f.key} value={f.key}>{f.label}{f.enabled ? '' : ' (hidden)'}</option>)}
+                        </optgroup>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <div className="form-actions" style={{ marginTop: '1rem' }}>
+                  <button className="btn-ghost" onClick={() => { setPreview(null); setImportMsg(null) }}>← Back</button>
+                  <button className="btn-primary" onClick={runImport} disabled={importing}>
+                    {importing ? 'Importing…' : `Import ${preview.rowCount} row${preview.rowCount !== 1 ? 's' : ''}`}
+                  </button>
+                </div>
+                {importMsg && <p className={importMsg.type === 'ok' ? 'extract-success' : 'extract-error'} style={{ marginTop: '.8rem' }}>{importMsg.text}</p>}
+              </>
+            )}
           </div>
         )}
 

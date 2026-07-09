@@ -5,6 +5,7 @@ import StatCards from './components/StatCards'
 import AppTable from './components/AppTable'
 import AddForm from './components/AddForm'
 import SettingsModal from './components/SettingsModal'
+import ConfirmDialog from './components/ConfirmDialog'
 
 export default function App() {
   const [config, setConfig] = useState(null)
@@ -14,6 +15,7 @@ export default function App() {
   const [showForm, setShowForm] = useState(false)
   const [editApp, setEditApp] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [confirmTarget, setConfirmTarget] = useState(null)
   const [filter, setFilter] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
 
@@ -119,7 +121,7 @@ export default function App() {
           onStatusChange={handleStatusChange}
           onEdit={setEditApp}
           onArchive={handleArchive}
-          onDelete={handleDelete}
+          onDelete={setConfirmTarget}
           onAdd={() => setShowForm(true)}
         />
       </main>
@@ -141,6 +143,15 @@ export default function App() {
           onClose={() => setShowSettings(false)}
           onSaved={handleConfigSaved}
           onError={flashError}
+        />
+      )}
+
+      {confirmTarget && (
+        <ConfirmDialog
+          app={confirmTarget}
+          onArchive={() => { handleArchive(confirmTarget.id, true); setConfirmTarget(null) }}
+          onDelete={() => { handleDelete(confirmTarget.id); setConfirmTarget(null) }}
+          onCancel={() => setConfirmTarget(null)}
         />
       )}
     </div>

@@ -21,7 +21,12 @@ export const api = {
   deleteApplication: (id) => req(`/api/applications/${id}`, { method: 'DELETE' }),
 
   extract: (url) => req('/api/extract', { method: 'POST', body: JSON.stringify({ url }) }),
-  importGSheet: (url) => req('/api/import/gsheet', { method: 'POST', body: JSON.stringify({ url }) }),
+
+  previewGSheet: (url) => req('/api/import/gsheet/preview', { method: 'POST', body: JSON.stringify({ url }) }),
+  importGSheet: (url, mapping) => req('/api/import/gsheet', { method: 'POST', body: JSON.stringify({ url, mapping }) }),
+
+  ollamaStatus: (baseUrl) => req(`/api/ai/ollama-status?baseUrl=${encodeURIComponent(baseUrl || '')}`),
+  ollamaPull: (baseUrl, model) => req('/api/ai/ollama-pull', { method: 'POST', body: JSON.stringify({ baseUrl, model }) }),
 }
 
 // Fields the extractor knows how to fill (used to decide which of the user's

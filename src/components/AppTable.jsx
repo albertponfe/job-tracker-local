@@ -81,7 +81,7 @@ function Row({ app, tableFields, onStatusChange, onEdit, onArchive, onDelete, is
             title={isArchived ? 'Restore' : 'Archive'}
             onClick={() => onArchive(app.id, !isArchived)}
           >{isArchived ? '↩' : '⊙'}</button>
-          <button className="btn-row btn-row--delete" title="Delete permanently" onClick={() => onDelete(app.id)}>🗑</button>
+          <button className="btn-row btn-row--delete" title="Remove…" onClick={() => onDelete(app)}>🗑</button>
         </div>
       </td>
     </tr>

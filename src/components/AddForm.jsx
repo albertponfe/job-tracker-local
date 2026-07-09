@@ -8,11 +8,13 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
   const gridFields = enabled.filter(f => f.type !== 'url' && f.type !== 'textarea')
   const textAreas = enabled.filter(f => f.type === 'textarea')
 
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
   const init = {}
   for (const f of enabled) {
     const existing = initialData?.[f.key]
     if (existing != null && existing !== '') init[f.key] = existing
     else if (f.type === 'select') init[f.key] = (f.options && f.options[0]) || '' // default to first option, not blank
+    else if (f.key === 'date') init[f.key] = today // sensible default for new entries
     else init[f.key] = ''
   }
   if (urlField) init[urlField.key] = initialData?.[urlField.key] ?? ''

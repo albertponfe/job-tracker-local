@@ -16,23 +16,24 @@ file on your machine (`data/applications.json`).
   **free local model** (Ollama) or **your own** OpenAI / OpenRouter / Anthropic key. Or skip AI entirely.
 - **(Optional) Import a Google Sheet** you already have — once — into your local copy.
 
-## Quick start
+## Quick start (one double-click)
 
-You need [**Node.js**](https://nodejs.org) (the "LTS" version) installed. Then:
+- **Windows:** double-click **`start.bat`** — it will even install Node.js for you if it's missing.
+- **Mac:** double-click **`start-mac.command`** (first time: right-click → Open to clear the security prompt).
+- **Linux:** run **`./start.sh`**.
 
-**Easiest:** double-click **`start.bat`** (Windows) or run **`./start.sh`** (macOS/Linux).
-It installs everything the first time, builds the app, and opens it in your browser.
+The first run installs everything, then opens the app at **http://localhost:3000**.
+Close the window to stop; double-click again to reopen.
 
-**Or, in a terminal** inside this folder:
+**Developers**, in a terminal instead:
 
 ```bash
 npm install     # first time only
 npm start       # builds and runs — opens http://localhost:3000
+# npm run dev   # hot-reload dev server on :5173 (proxies API to :3000)
 ```
 
-To stop it, press `Ctrl+C` in the terminal.
-
-👉 New to this? See **[SETUP.md](SETUP.md)** for a step-by-step, screenshots-in-words guide.
+👉 New to this? See **[SETUP.md](SETUP.md)** for a step-by-step, plain-English guide.
 
 ## Your data & privacy
 
@@ -40,16 +41,23 @@ To stop it, press `Ctrl+C` in the terminal.
 - The app only talks to the internet if **you** turn on a cloud AI provider or import a Google Sheet.
 - To back up or move your data, just copy `data/applications.json`. You can also **Export** to CSV/JSON from Settings.
 
-## Optional: free AI extraction with Ollama
+## Optional: free AI extraction with Ollama (no terminal)
 
-1. Install [Ollama](https://ollama.com) (free, open-source).
-2. In a terminal: `ollama pull llama3.2`
-3. In the app: **Settings → AI Extraction → Ollama**, then Save.
+1. Install [Ollama](https://ollama.com) (free, open-source) — just run the installer.
+2. In the app: **⚙ Settings → AI Extraction → Ollama**. The app detects Ollama, and a
+   **⬇ Download model** button fetches the model for you. When it says "Ready," click **Save**.
 
 Now the **Extract** button auto-fills a job's details from its link — with nothing leaving your computer.
+(You can also plug in your own OpenAI / OpenRouter / Anthropic key instead.)
 
 > Note: big job boards (LinkedIn, Indeed, Glassdoor) block automated reading, so Extract won't
 > work on them. Direct company/ATS links (Greenhouse, Lever, Ashby, Workday, etc.) usually work fine.
+
+## Importing a Google Sheet
+
+**⚙ Settings → Import / Export** takes a view-shared sheet link and shows a **column-mapping**
+step: your headers don't need to match — map each column to a field, create a new one, or ignore it.
+Nothing is imported until you confirm, so nothing is lost or misplaced.
 
 ## License
 
