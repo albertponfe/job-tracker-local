@@ -1,0 +1,25 @@
+{
+  "name": "job-tracker-local",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first job application tracker. Runs entirely on your machine. Optional AI extraction (free local model or your own key). Optional one-time import from a Google Sheet.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "npm run build && node server.js",
+    "server": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

@@ -1,0 +1,8 @@
+# Normalize line endings across platforms so the app runs everywhere.
+* text=auto eol=lf
+
+# Windows batch files must keep CRLF
+*.bat text eol=crlf
+
+# Shell scripts must keep LF (CRLF breaks the shebang on macOS/Linux)
+*.sh text eol=lf

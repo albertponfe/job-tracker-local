@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# YOUR DATA — never committed. This is where your applications and settings live.
+data/
+
+# Local environment overrides (optional)
+.env
+.env.local
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.log
