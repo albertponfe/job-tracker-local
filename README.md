@@ -34,6 +34,7 @@ npm start       # builds and runs — opens http://localhost:3000
 ```
 
 👉 New to this? See **[SETUP.md](SETUP.md)** for a step-by-step, plain-English guide.
+
 ⚠️ Came across an error? See the section **[Troubleshooting](#Troubleshooting)**.
 
 ## Your data & privacy
