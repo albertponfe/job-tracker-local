@@ -196,9 +196,109 @@ async function callModel(ai, prompt) {
   throw new Error('No AI provider configured')
 }
 
+// ── Structured extractors for ATS whose pages are JS-only (read their JSON API) ──
+const titleCase = s => String(s || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+const EMPLOYMENT = { FullTime: 'Full-time', PartTime: 'Part-time', Intern: 'Internship', Contract: 'Contract', Temporary: 'Temporary', Volunteer: 'Volunteer' }
+
+// Ashby job pages render entirely client-side; the data lives in their public API.
+async function tryAshby(url) {
+  const m = String(url).match(/jobs\.ashbyhq\.com\/([^/?#]+)\/([0-9a-f-]{36})/i)
+  if (!m) return null
+  const [, token, jobId] = m
+  try {
+    const r = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(token)}?includeCompensation=true`, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) return null
+    const job = ((await r.json()).jobs || []).find(j => j.id === jobId)
+    if (!job) return null
+    const comp = job.compensation || {}
+    return {
+      company: titleCase(token),
+      position: job.title || '',
+      location: job.location || (job.isRemote ? 'Remote' : ''),
+      salary: comp.scrapeableCompensationSalarySummary || comp.compensationTierSummary || '',
+      employmentType: EMPLOYMENT[job.employmentType] || job.employmentType || '',
+      contactName: '',
+      contactEmail: '',
+    }
+  } catch { return null }
+}
+
+// Find a "$X – $Y" salary range in free text (fallback when structured pay is absent).
+function findSalary(text) {
+  const m = String(text || '').match(/\$\s?\d[\d,]*(?:\.\d+)?\s?[kK]?\s?(?:-|–|—|to)\s?\$?\s?\d[\d,]*(?:\.\d+)?\s?[kK]?/)
+  return m ? m[0].replace(/\s+/g, ' ').trim() : ''
+}
+function fmtGhPay(ranges) {
+  try {
+    const r = (ranges || [])[0]
+    if (r && typeof r.min_cents === 'number' && typeof r.max_cents === 'number') {
+      const k = c => '$' + Math.round(c / 100000) + 'K'
+      return `${k(r.min_cents)} – ${k(r.max_cents)}`
+    }
+  } catch { /* ignore */ }
+  return ''
+}
+
+// Greenhouse direct board links — read the boards API for clean structured data.
+async function tryGreenhouse(url) {
+  const m = String(url).match(/(?:job-boards|boards)\.greenhouse\.io\/([^/?#]+)\/jobs\/(\d+)/i)
+  if (!m) return null
+  const [, token, jobId] = m
+  try {
+    const r = await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(token)}/jobs/${jobId}?pay_transparency=true`, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) return null
+    const job = await r.json()
+    const meta = job.metadata || []
+    const metaVal = re => { const e = meta.find(x => re.test(String(x.name || ''))); return e && typeof e.value === 'string' ? e.value : '' }
+    const empType = metaVal(/employment|job\s*type|work\s*type/i)
+    return {
+      company: job.company_name || titleCase(token),
+      position: job.title || '',
+      location: job.location?.name || '',
+      salary: fmtGhPay(job.pay_input_ranges) || findSalary(job.content) || metaVal(/salary|compensation|pay/i) || '',
+      employmentType: EMPLOYMENT[empType] || empType || '',
+      contactName: '',
+      contactEmail: '',
+    }
+  } catch { return null }
+}
+
+// Lever (jobs.lever.co/{token}/{id}) — read the postings API.
+async function tryLever(url) {
+  const m = String(url).match(/jobs\.lever\.co\/([^/?#]+)\/([0-9a-f-]{36})/i)
+  if (!m) return null
+  const [, token, jobId] = m
+  try {
+    const r = await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(token)}/${jobId}`, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) return null
+    const job = await r.json()
+    const cat = job.categories || {}
+    const sr = job.salaryRange
+    let salary = ''
+    if (sr && (sr.min || sr.max)) {
+      const cur = sr.currency === 'USD' ? '$' : (sr.currency ? sr.currency + ' ' : '$')
+      salary = `${cur}${Number(sr.min || 0).toLocaleString()} – ${cur}${Number(sr.max || 0).toLocaleString()}`
+    }
+    if (!salary) salary = findSalary(job.descriptionPlain || job.description)
+    return {
+      company: titleCase(token),
+      position: job.text || '',
+      location: cat.location || '',
+      salary,
+      employmentType: EMPLOYMENT[cat.commitment] || cat.commitment || '',
+      contactName: '',
+      contactEmail: '',
+    }
+  } catch { return null }
+}
+
 app.post('/api/extract', async (req, res) => {
   const { url } = req.body || {}
   if (!url) return res.status(400).json({ error: 'A job URL is required.' })
+
+  // Structured extractors first — these work even with no AI provider configured.
+  const structured = (await tryAshby(url)) || (await tryGreenhouse(url)) || (await tryLever(url))
+  if (structured) return res.json(structured)
 
   const { ai } = await readConfig()
   if (!ai.provider || ai.provider === 'none') {
@@ -226,7 +326,9 @@ app.post('/api/extract', async (req, res) => {
       .slice(0, 12000)
 
     const lower = pageText.toLowerCase()
+    const jsOnly = lower.includes('enable javascript') || lower.includes('you need to enable')
     const blocked =
+      jsOnly ||
       lower.includes('join linkedin') ||
       lower.includes('authwall') ||
       lower.includes('please enable cookies') ||
@@ -235,7 +337,9 @@ app.post('/api/extract', async (req, res) => {
       pageText.length < 200
     if (blocked) {
       return res.status(422).json({
-        error: 'This site blocks automated access (common for LinkedIn, Indeed, Glassdoor). Please fill in the fields manually. Job-board/ATS links like Greenhouse, Lever, or Ashby usually work.',
+        error: jsOnly
+          ? "This page loads its details with JavaScript, so there's nothing for the app to read from the link. Try the direct job-board posting (e.g. a Greenhouse or Lever link), or fill the fields in manually."
+          : 'This site blocks automated access (common for LinkedIn, Indeed, Glassdoor). Please fill in the fields manually. Direct Greenhouse or Lever links usually work.',
         blocked: true,
       })
     }
