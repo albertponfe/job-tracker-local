@@ -342,9 +342,11 @@ async function fetchSheetCsv(url) {
   const idMatch = String(url).match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
   if (!idMatch) throw { status: 400, message: "That doesn't look like a Google Sheets link." }
   const id = idMatch[1]
+  // Only pin a tab if the link carries a gid (the browser address-bar link does;
+  // the Share button's link does not). Without one, Google exports the first tab.
   const gidMatch = String(url).match(/[#&?]gid=([0-9]+)/)
-  const gid = gidMatch ? gidMatch[1] : '0'
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`
+  const gid = gidMatch ? gidMatch[1] : null
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid ? `&gid=${gid}` : ''}`
 
   let csv = ''
   try {
@@ -359,7 +361,14 @@ async function fetchSheetCsv(url) {
   }
 
   const rows = parseCSV(csv)
-  if (rows.length < 2) throw { status: 422, message: 'The sheet has no data rows.' }
+  if (rows.length < 2) {
+    throw {
+      status: 422,
+      message: gid
+        ? 'That tab has no data rows.'
+        : "That tab looks empty. If your applications are on a different tab, open that tab in Google Sheets and copy the link from your browser's address bar (it includes the tab) — the Share button's link only points to the first tab.",
+    }
+  }
   return { headers: rows[0], rows: rows.slice(1) }
 }
 

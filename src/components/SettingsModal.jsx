@@ -330,7 +330,7 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
                   <input className="input" placeholder="https://docs.google.com/spreadsheets/d/…"
                     value={sheetUrl} onChange={e => setSheetUrl(e.target.value)} />
                 </div>
-                <p className="hint-line">In Google Sheets: <b>Share → General access → “Anyone with the link” → Viewer</b>. Column names don't need to match — you'll map them in the next step.</p>
+                <p className="hint-line">In Google Sheets: <b>Share → General access → “Anyone with the link” → Viewer</b>. Then open the tab with your data and copy the link from your <b>browser's address bar</b> (not the Share button) — it includes the exact tab. Column names don't need to match; you'll map them next.</p>
                 <button className="btn-primary" onClick={runPreview} disabled={previewing || !sheetUrl.trim()}>
                   {previewing ? 'Reading sheet…' : 'Preview & map columns →'}
                 </button>
