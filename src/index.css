@@ -80,6 +80,21 @@ button { font-family: var(--font); cursor: pointer; border: none; background: no
   box-shadow: 0 4px 14px rgba(99,102,241,0.35);
 }
 .logo-text { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.03em; }
+/* Queue wordmark (colorful letters on white) — shown as a clean rounded chip on the dark header */
+.logo-img {
+  height: 30px; width: auto; display: block;
+  background: #fff; padding: 4px 10px; border-radius: 9px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+.logo-tagline {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--border2);
+}
 .header-right { display: flex; align-items: center; gap: 0.65rem; }
 .btn-icon {
   width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border2);
@@ -94,6 +109,18 @@ button { font-family: var(--font); cursor: pointer; border: none; background: no
 }
 .btn-add:hover { filter: brightness(1.12); transform: translateY(-1px); }
 .btn-add:active { transform: scale(0.98); }
+/* secondary header actions (Fields / Import / AI) — visible but dimmer than the gradient Add button */
+.btn-tool {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.85rem; border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(99,102,241,0.08);
+  color: var(--accent2);
+  font-size: 0.85rem; font-weight: 600;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.btn-tool:hover { background: rgba(99,102,241,0.2); color: #fff; border-color: var(--accent); transform: translateY(-1px); }
+.btn-tool-icon { font-size: 0.9rem; opacity: 0.95; }
 
 /* ── Main ── */
 .main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
@@ -146,20 +173,27 @@ button { font-family: var(--font); cursor: pointer; border: none; background: no
 
 /* ── Table ── */
 .table-wrap { background: var(--bg-card); border: 1px solid var(--border2); border-radius: var(--radius); overflow-x: auto; }
-.app-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+/* table-layout: fixed keeps every column a stable width — a longer value wraps
+   onto more lines instead of widening its column and shifting the whole table */
+.app-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; }
 .app-table thead tr { border-bottom: 1px solid var(--border2); }
 .app-table th {
   padding: 0.9rem 1rem; text-align: left; font-size: 0.7rem; text-transform: uppercase;
-  letter-spacing: 0.09em; color: var(--muted); font-weight: 600; white-space: nowrap;
+  letter-spacing: 0.09em; color: var(--muted); font-weight: 600; overflow-wrap: break-word; line-height: 1.3;
 }
-.app-table td { padding: 0.8rem 1rem; border-bottom: 1px solid var(--border2); vertical-align: middle; }
+.app-table td {
+  padding: 0.8rem 1rem; border-bottom: 1px solid var(--border2); vertical-align: middle;
+  overflow-wrap: break-word; word-break: break-word;
+}
 .app-table tbody tr { animation: rowIn 0.35s ease both; transition: background 0.15s; }
 .app-table tbody tr:last-child td { border-bottom: none; }
 .app-table tbody tr:hover { background: rgba(99,102,241,0.045); }
+.app-table tbody tr.row-click { cursor: pointer; }
 .td-bold { font-weight: 600; }
 .td-muted { color: var(--muted); font-size: 0.85rem; }
 
-.company-cell { display: flex; align-items: center; gap: 0.65rem; min-width: 140px; }
+.company-cell { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
+.company-cell .td-bold { min-width: 0; overflow-wrap: anywhere; }
 .company-avatar {
   width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
   font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
@@ -175,10 +209,7 @@ button { font-family: var(--font); cursor: pointer; border: none; background: no
 .status-select option { background: var(--bg-card); color: var(--text); font-weight: 500; }
 .status-select-wrap::after { content: '▾'; position: absolute; right: 0.6rem; font-size: 0.65rem; pointer-events: none; opacity: 0.8; }
 
-.contact-email {
-  font-size: 0.8rem; color: var(--accent2); display: inline-block; max-width: 190px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
-}
+.contact-email { font-size: 0.8rem; color: var(--accent2); overflow-wrap: anywhere; }
 
 /* ── Row action buttons ── */
 .table-actions { display: flex; align-items: center; gap: 0.3rem; }
@@ -359,6 +390,37 @@ select.input option { background: var(--bg-card); }
 .btn-confirm--cancel { background: transparent; color: var(--muted); border-color: var(--border2); }
 .btn-confirm--cancel:hover { color: var(--text); border-color: var(--muted); }
 
+/* ── Detail view (click a row) ── */
+.modal--detail { max-width: 560px; }
+.detail-title { display: flex; align-items: center; gap: 0.85rem; min-width: 0; }
+.detail-avatar { width: 42px; height: 42px; border-radius: 12px; font-size: 1.05rem; flex-shrink: 0; }
+.detail-title h2 { line-height: 1.15; }
+.detail-subtitle { color: var(--muted); font-size: 0.9rem; margin-top: 0.15rem; }
+
+.detail-list {
+  border: 1px solid var(--border2); border-radius: 12px; overflow: hidden;
+  margin: 0.5rem 0 1.5rem;
+}
+.detail-row {
+  display: grid; grid-template-columns: 130px 1fr; gap: 1rem;
+  padding: 0.75rem 1rem; border-bottom: 1px solid var(--border2); align-items: start;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-label {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); font-weight: 600; padding-top: 0.2rem;
+}
+.detail-value { font-size: 0.92rem; min-width: 0; }
+.detail-text { color: var(--text); }
+.detail-empty { color: var(--muted); opacity: 0.55; font-style: italic; }
+.detail-link { color: var(--accent2); word-break: break-all; }
+.detail-link:hover { color: #fff; text-decoration: underline; }
+.detail-notes { color: var(--text); white-space: pre-wrap; line-height: 1.55; }
+.detail-status {
+  display: inline-block; padding: 0.24rem 0.75rem; border-radius: 999px;
+  font-size: 0.78rem; font-weight: 600; border: 1px solid;
+}
+
 /* ── Responsive ── */
 @media (max-width: 720px) {
   .main { padding: 1rem; }
@@ -371,4 +433,7 @@ select.input option { background: var(--bg-card); }
   .btn-add { padding: 0.55rem 0.9rem; font-size: 0.82rem; }
   .table-toolbar { flex-wrap: wrap; }
   .field-row { grid-template-columns: 1fr 56px 56px 60px; }
+  .logo-tagline { display: none; }
+  .btn-tool-label { display: none; }
+  .btn-tool { padding: 0.5rem 0.6rem; }
 }

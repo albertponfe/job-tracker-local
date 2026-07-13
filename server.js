@@ -169,7 +169,7 @@ async function callModel(ai, prompt) {
     })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error?.message || `Anthropic error ${r.status}`)
-    return d.content?.[0]?.text || ''
+    return (d.content || []).find(b => b.type === 'text')?.text || ''
   }
 
   // openai-compatible: OpenAI, OpenRouter, LM Studio, Groq, LocalAI, vLLM, ...
@@ -474,7 +474,7 @@ if (existsSync(DIST_DIR)) {
   app.get('*', (_req, res) => res.sendFile(join(DIST_DIR, 'index.html')))
 } else {
   app.get('*', (_req, res) =>
-    res.status(200).send('<h1>Job Tracker</h1><p>The app has not been built yet. Run <code>npm start</code> (which builds then serves), or <code>npm run dev</code> for development.</p>'))
+    res.status(200).send('<h1>Queue</h1><p>The app has not been built yet. Run <code>npm start</code> (which builds then serves), or <code>npm run dev</code> for development.</p>'))
 }
 
 // ─────────────────────────────── Boot ────────────────────────────────────
@@ -490,7 +490,7 @@ function openBrowser(url) {
 await ensureData()
 app.listen(PORT, () => {
   const url = `http://localhost:${PORT}`
-  console.log(`\n  📋  Job Tracker is running at  ${url}`)
+  console.log(`\n  🎯  Queue is running at  ${url}`)
   console.log(`      Your data is stored locally in  data/applications.json`)
   console.log(`      Press Ctrl+C to stop.\n`)
   openBrowser(url)

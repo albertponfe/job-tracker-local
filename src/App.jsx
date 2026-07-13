@@ -6,6 +6,7 @@ import AppTable from './components/AppTable'
 import AddForm from './components/AddForm'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
+import DetailModal from './components/DetailModal'
 
 export default function App() {
   const [config, setConfig] = useState(null)
@@ -14,8 +15,9 @@ export default function App() {
   const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [editApp, setEditApp] = useState(null)
-  const [showSettings, setShowSettings] = useState(false)
+  const [settingsTab, setSettingsTab] = useState(null) // null = closed, else the tab to open
   const [confirmTarget, setConfirmTarget] = useState(null)
+  const [detailApp, setDetailApp] = useState(null)
   const [filter, setFilter] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
 
@@ -83,7 +85,7 @@ export default function App() {
     <div className="app">
       <Header
         onAdd={() => setShowForm(true)}
-        onSettings={() => setShowSettings(true)}
+        onOpenSettings={setSettingsTab}
       />
       <main className="main">
         {error && <div className="error-banner">{error}</div>}
@@ -119,6 +121,7 @@ export default function App() {
           applications={visible}
           archivedApps={showArchived ? archivedApps : []}
           filter={filter}
+          onOpen={setDetailApp}
           onStatusChange={handleStatusChange}
           onEdit={setEditApp}
           onArchive={handleArchive}
@@ -138,10 +141,11 @@ export default function App() {
         />
       )}
 
-      {showSettings && (
+      {settingsTab && (
         <SettingsModal
           config={config}
-          onClose={() => setShowSettings(false)}
+          initialTab={settingsTab}
+          onClose={() => setSettingsTab(null)}
           onSaved={handleConfigSaved}
           onError={flashError}
         />
@@ -153,6 +157,15 @@ export default function App() {
           onArchive={() => { handleArchive(confirmTarget.id, true); setConfirmTarget(null) }}
           onDelete={() => { handleDelete(confirmTarget.id); setConfirmTarget(null) }}
           onCancel={() => setConfirmTarget(null)}
+        />
+      )}
+
+      {detailApp && (
+        <DetailModal
+          app={detailApp}
+          fields={config.fields}
+          onClose={() => setDetailApp(null)}
+          onEdit={(app) => { setDetailApp(null); setEditApp(app) }}
         />
       )}
     </div>

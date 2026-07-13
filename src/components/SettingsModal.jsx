@@ -10,6 +10,24 @@ const PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic Claude (your key)' },
 ]
 
+// Anthropic requires an exact, valid model ID — a dropdown prevents typos (and the
+// classic bug of a leftover Ollama model name like "llama3.2" being sent to Anthropic).
+const ANTHROPIC_MODELS = [
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — fast & low-cost (recommended)' },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 — balanced' },
+  { id: 'claude-opus-4-8', label: 'Claude Opus 4.8 — most capable' },
+]
+const ANTHROPIC_DEFAULT = ANTHROPIC_MODELS[0].id
+
+// Sensible starting model per provider, applied when the provider changes so a model
+// name from one provider is never carried over to a different, incompatible API.
+const PROVIDER_DEFAULT_MODEL = {
+  none: '',
+  ollama: 'llama3.2',
+  'openai-compatible': 'gpt-4o-mini',
+  anthropic: ANTHROPIC_DEFAULT,
+}
+
 function download(name, text, type) {
   const blob = new Blob([text], { type })
   const url = URL.createObjectURL(blob)
@@ -85,12 +103,20 @@ function OllamaSetup({ ai, setAi }) {
   )
 }
 
-export default function SettingsModal({ config, onClose, onSaved, onError }) {
-  const [tab, setTab] = useState('fields')
+export default function SettingsModal({ config, onClose, onSaved, onError, initialTab }) {
+  const [tab, setTab] = useState(initialTab || 'fields')
   const [fields, setFields] = useState(config.fields.map(f => ({ ...f })))
   const [ai, setAi] = useState({ ...config.ai })
   const [newField, setNewField] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Repair an already-saved bad state (e.g. provider=anthropic but model=llama3.2)
+  // so opening this panel and saving can't preserve a model the API will reject.
+  useEffect(() => {
+    if (ai.provider === 'anthropic' && !ANTHROPIC_MODELS.some(m => m.id === ai.model)) {
+      setAi(a => ({ ...a, model: ANTHROPIC_DEFAULT }))
+    }
+  }, [ai.provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // import flow
   const [sheetUrl, setSheetUrl] = useState('')
@@ -236,7 +262,10 @@ export default function SettingsModal({ config, onClose, onSaved, onError }) {
             </p>
             <div className="field">
               <label>Provider</label>
-              <select className="input" value={ai.provider} onChange={e => setAi(a => ({ ...a, provider: e.target.value }))}>
+              <select className="input" value={ai.provider} onChange={e => {
+                const provider = e.target.value
+                setAi(a => ({ ...a, provider, model: PROVIDER_DEFAULT_MODEL[provider] ?? a.model }))
+              }}>
                 {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
@@ -274,11 +303,15 @@ export default function SettingsModal({ config, onClose, onSaved, onError }) {
             {ai.provider === 'anthropic' && (
               <>
                 <div className="field"><label>Model</label>
-                  <input className="input" value={ai.model} placeholder="claude-haiku-4-5-20251001"
-                    onChange={e => setAi(a => ({ ...a, model: e.target.value }))} /></div>
+                  <select className="input"
+                    value={ANTHROPIC_MODELS.some(m => m.id === ai.model) ? ai.model : ANTHROPIC_DEFAULT}
+                    onChange={e => setAi(a => ({ ...a, model: e.target.value }))}>
+                    {ANTHROPIC_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select></div>
                 <div className="field"><label>API key</label>
                   <input className="input" type="password" value={ai.apiKey} placeholder="sk-ant-…"
                     onChange={e => setAi(a => ({ ...a, apiKey: e.target.value }))} /></div>
+                <p className="hint-line">Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Haiku is cheapest and plenty for this.</p>
               </>
             )}
 
