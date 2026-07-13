@@ -38,7 +38,7 @@ function CompanyCell({ name }) {
       <span className="company-avatar" style={{ background: `hsl(${hue} 55% 20%)`, color: `hsl(${hue} 90% 78%)` }}>
         {name.charAt(0).toUpperCase()}
       </span>
-      <span className="td-bold">{name}</span>
+      <span className="td-bold cell-clamp">{name}</span>
     </div>
   )
 }
@@ -77,12 +77,12 @@ function Cell({ field, app, onStatusChange }) {
 
   if (field.type === 'email') {
     return val
-      ? <a href={`mailto:${val}`} className="contact-email" title={val} onClick={e => e.stopPropagation()}>{val}</a>
+      ? <a href={`mailto:${val}`} className="contact-email cell-clamp" title={val} onClick={e => e.stopPropagation()}>{val}</a>
       : <span className="td-muted">—</span>
   }
 
   if (!val) return <span className="td-muted">—</span>
-  return <span className={field.type === 'text' && field.key === 'position' ? '' : 'td-muted'}>{val}</span>
+  return <span className={`cell-clamp ${field.type === 'text' && field.key === 'position' ? '' : 'td-muted'}`} title={val}>{val}</span>
 }
 
 function Row({ app, tableFields, onOpen, onStatusChange, onEdit, onArchive, onDelete, isArchived, animDelay }) {

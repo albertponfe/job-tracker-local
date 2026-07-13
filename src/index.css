@@ -191,6 +191,15 @@ button { font-family: var(--font); cursor: pointer; border: none; background: no
 .app-table tbody tr.row-click { cursor: pointer; }
 .td-bold { font-weight: 600; }
 .td-muted { color: var(--muted); font-size: 0.85rem; }
+/* Cap a cell's text at 2 lines with an ellipsis; the full value is in the row's detail view */
+.cell-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
 
 .company-cell { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
 .company-cell .td-bold { min-width: 0; overflow-wrap: anywhere; }
