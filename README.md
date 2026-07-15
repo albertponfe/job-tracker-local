@@ -22,7 +22,7 @@ file on your machine (`data/applications.json`).
 ## Quick start (one double-click)
 
 - **Windows:** double-click **`start.bat`** — it will even install Node.js for you if it's missing.
-- **Mac:** double-click **`start-mac.command`** (first time: right-click → Open to clear the security prompt).
+- **Mac:** double-click **`start-mac.command`** (first time: right-click → Open to clear the security prompt. Likely you have to check **[Troubleshooting](#Troubleshooting)**).
 - **Linux:** run **`./start.sh`**.
 
 The first run installs everything, then opens the app at **http://localhost:3000**.
