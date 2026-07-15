@@ -6,7 +6,7 @@ const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, 
 const PROVIDERS = [
   { value: 'none', label: 'None (manual entry only)' },
   { value: 'ollama', label: 'Ollama — free, runs locally' },
-  { value: 'openai-compatible', label: 'OpenAI / OpenRouter / LM Studio (your key)' },
+  { value: 'openai', label: 'OpenAI (your key)' },
   { value: 'anthropic', label: 'Anthropic Claude (your key)' },
 ]
 
@@ -19,12 +19,21 @@ const ANTHROPIC_MODELS = [
 ]
 const ANTHROPIC_DEFAULT = ANTHROPIC_MODELS[0].id
 
+// OpenAI models, chosen as a dropdown for the same reason as Anthropic: a valid model
+// ID is required, and a free-text box invites typos that the API rejects.
+const OPENAI_MODELS = [
+  { id: 'gpt-4o-mini', label: 'GPT-4o mini — fast & low-cost (recommended)' },
+  { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini — balanced' },
+  { id: 'gpt-4o', label: 'GPT-4o — most capable' },
+]
+const OPENAI_DEFAULT = OPENAI_MODELS[0].id
+
 // Sensible starting model per provider, applied when the provider changes so a model
 // name from one provider is never carried over to a different, incompatible API.
 const PROVIDER_DEFAULT_MODEL = {
   none: '',
   ollama: 'llama3.2',
-  'openai-compatible': 'gpt-4o-mini',
+  openai: OPENAI_DEFAULT,
   anthropic: ANTHROPIC_DEFAULT,
 }
 
@@ -106,15 +115,24 @@ function OllamaSetup({ ai, setAi }) {
 export default function SettingsModal({ config, onClose, onSaved, onError, initialTab }) {
   const [tab, setTab] = useState(initialTab || 'fields')
   const [fields, setFields] = useState(config.fields.map(f => ({ ...f })))
-  const [ai, setAi] = useState({ ...config.ai })
+  // Legacy configs may still say 'openai-compatible' — treat that as OpenAI.
+  const [ai, setAi] = useState(() => {
+    const a = { ...config.ai }
+    if (a.provider === 'openai-compatible') a.provider = 'openai'
+    return a
+  })
   const [newField, setNewField] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Repair an already-saved bad state (e.g. provider=anthropic but model=llama3.2)
-  // so opening this panel and saving can't preserve a model the API will reject.
+  // Repair an already-saved bad state (e.g. provider=anthropic but model=llama3.2,
+  // or a legacy openai-compatible model that isn't in our OpenAI list) so opening
+  // this panel and saving can't preserve a model the API will reject.
   useEffect(() => {
     if (ai.provider === 'anthropic' && !ANTHROPIC_MODELS.some(m => m.id === ai.model)) {
       setAi(a => ({ ...a, model: ANTHROPIC_DEFAULT }))
+    }
+    if (ai.provider === 'openai' && !OPENAI_MODELS.some(m => m.id === ai.model)) {
+      setAi(a => ({ ...a, model: OPENAI_DEFAULT }))
     }
   }, [ai.provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -285,18 +303,18 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
               </>
             )}
 
-            {ai.provider === 'openai-compatible' && (
+            {ai.provider === 'openai' && (
               <>
-                <div className="field"><label>Base URL</label>
-                  <input className="input" value={ai.baseUrl} placeholder="https://api.openai.com/v1"
-                    onChange={e => setAi(a => ({ ...a, baseUrl: e.target.value }))} /></div>
                 <div className="field"><label>Model</label>
-                  <input className="input" value={ai.model} placeholder="gpt-4o-mini"
-                    onChange={e => setAi(a => ({ ...a, model: e.target.value }))} /></div>
+                  <select className="input"
+                    value={OPENAI_MODELS.some(m => m.id === ai.model) ? ai.model : OPENAI_DEFAULT}
+                    onChange={e => setAi(a => ({ ...a, model: e.target.value }))}>
+                    {OPENAI_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select></div>
                 <div className="field"><label>API key</label>
                   <input className="input" type="password" value={ai.apiKey} placeholder="sk-…"
                     onChange={e => setAi(a => ({ ...a, apiKey: e.target.value }))} /></div>
-                <p className="hint-line">Tip: <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a> offers free models — use base URL <code>https://openrouter.ai/api/v1</code> and a model ending in <code>:free</code>.</p>
+                <p className="hint-line">Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>. GPT-4o mini is cheapest and plenty for this.</p>
               </>
             )}
 

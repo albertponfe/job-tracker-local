@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
     { key: 'notes',          label: 'Notes',         type: 'textarea', enabled: true,  table: false },
   ],
   ai: {
-    provider: process.env.AI_PROVIDER || 'none', // none | ollama | openai-compatible | anthropic
+    provider: process.env.AI_PROVIDER || 'none', // none | ollama | openai | anthropic
     model: process.env.AI_MODEL || 'llama3.2',
     baseUrl: process.env.AI_BASE_URL || 'http://localhost:11434',
     apiKey: process.env.AI_API_KEY || '',
@@ -172,24 +172,25 @@ async function callModel(ai, prompt) {
     return (d.content || []).find(b => b.type === 'text')?.text || ''
   }
 
-  // openai-compatible: OpenAI, OpenRouter, LM Studio, Groq, LocalAI, vLLM, ...
-  if (ai.provider === 'openai-compatible') {
-    const base = (ai.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '')
-    const r = await fetch(`${base}/chat/completions`, {
+  // OpenAI. ('openai-compatible' is the legacy value kept for older saved configs.)
+  // The base URL is fixed to OpenAI's API — this is OpenAI-only by design.
+  if (ai.provider === 'openai' || ai.provider === 'openai-compatible') {
+    if (!ai.apiKey) throw new Error('An OpenAI API key is required. Add it in Settings → AI Extraction.')
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(ai.apiKey ? { Authorization: `Bearer ${ai.apiKey}` } : {}),
+        Authorization: `Bearer ${ai.apiKey}`,
       },
       body: JSON.stringify({
-        model: ai.model,
+        model: ai.model || 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' },
       }),
       signal: AbortSignal.timeout(60000),
     })
     const d = await r.json()
-    if (!r.ok) throw new Error(d.error?.message || `Provider error ${r.status}`)
+    if (!r.ok) throw new Error(d.error?.message || `OpenAI error ${r.status}`)
     return d.choices?.[0]?.message?.content || ''
   }
 
