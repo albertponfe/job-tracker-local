@@ -4,7 +4,7 @@ A simple, private job-application tracker that runs **entirely on your own compu
 No account, no subscription, no data sent to anyone. Your applications live in a plain
 file on your machine (`data/applications.json`).
 
-![It's a table of your job applications with stats, filtering, editing, and archiving.](https://via.placeholder.com/1/000/000)
+![It's a table of your job applications with stats, filtering, editing, and archiving.](queue_example_screen.png)
 
 ## What it does
 
