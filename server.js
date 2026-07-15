@@ -293,12 +293,104 @@ async function tryLever(url) {
   } catch { return null }
 }
 
+// SmartRecruiters (jobs/careers.smartrecruiters.com/{company}/{postingId}) — public postings API.
+async function trySmartRecruiters(url) {
+  const m = String(url).match(/smartrecruiters\.com\/([^/?#]+)\/(\d+)/i)
+  if (!m) return null
+  const [, token, postingId] = m
+  try {
+    const r = await fetch(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(token)}/postings/${postingId}`, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) return null
+    const job = await r.json()
+    const loc = job.location || {}
+    const locParts = [loc.city, loc.region].filter(Boolean)
+    if (loc.remote && !locParts.some(p => /remote/i.test(p))) locParts.push('Remote')
+    // SmartRecruiters has no structured pay field — scan the ad text as a fallback.
+    const secs = (job.jobAd && job.jobAd.sections) || {}
+    const adText = Object.values(secs).map(s => (s && s.text) || '').join(' ').replace(/<[^>]+>/g, ' ')
+    return {
+      company: (job.company && job.company.name) || titleCase(token),
+      position: job.name || '',
+      location: locParts.join(', '),
+      salary: findSalary(adText),
+      employmentType: (job.typeOfEmployment && job.typeOfEmployment.label) || '',
+      contactName: '',
+      contactEmail: '',
+    }
+  } catch { return null }
+}
+
+// Workable (apply.workable.com/{account}/j/{shortcode}) — public postings API.
+// The bare apply.workable.com/j/{code} form carries no account, so it can't hit
+// the API and falls through to the AI path instead.
+const WORKABLE_TYPE = { full: 'Full-time', part: 'Part-time', contract: 'Contract', temporary: 'Temporary', internship: 'Internship', trainee: 'Trainee' }
+async function tryWorkable(url) {
+  const m = String(url).match(/apply\.workable\.com\/([^/?#]+)\/j\/([0-9a-f]{6,})/i)
+  if (!m) return null
+  const [, account, shortcode] = m
+  try {
+    const r = await fetch(`https://apply.workable.com/api/v2/accounts/${encodeURIComponent(account)}/jobs/${shortcode.toUpperCase()}`, { signal: AbortSignal.timeout(12000) })
+    if (!r.ok) return null
+    const job = await r.json()
+    const loc = job.location || {}
+    const locParts = [loc.city, loc.region].filter(Boolean)
+    const remote = job.remote || /remote/i.test(job.workplace || '')
+    if (remote && !locParts.some(p => /remote/i.test(p))) locParts.push('Remote')
+    const text = [job.description, job.requirements, job.benefits].join(' ').replace(/<[^>]+>/g, ' ')
+    return {
+      company: titleCase(account),
+      position: job.title || '',
+      location: locParts.join(', '),
+      salary: findSalary(text),
+      employmentType: WORKABLE_TYPE[String(job.type || '').toLowerCase()] || titleCase(job.type || ''),
+      contactName: '',
+      contactEmail: '',
+    }
+  } catch { return null }
+}
+
+// Workday ({tenant}.{dc}.myworkdayjobs.com/[lang/]{site}/details/{path}) — the CXS API.
+// The host is per-tenant and the tenant name appears twice in the API path, so both
+// have to be parsed back out of the incoming URL. The browser's /details/ becomes /job/.
+const WORKDAY_TIME = { 'full time': 'Full-time', 'part time': 'Part-time', contract: 'Contract', temporary: 'Temporary' }
+async function tryWorkday(url) {
+  const m = String(url).match(/(https?:\/\/([^./]+)\.[^/]*\.myworkdayjobs\.com)\/(?:[a-z]{2}-[A-Z]{2}\/)?([^/]+)\/(?:details|job)\/(.+)$/i)
+  if (!m) return null
+  const [, host, tenant, site, rawPath] = m
+  const jobPath = rawPath.split(/[?#]/)[0].replace(/\/+$/, '')
+  try {
+    const r = await fetch(`${host}/wday/cxs/${tenant}/${encodeURIComponent(site)}/job/${jobPath}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!r.ok) return null
+    const j = (await r.json()).jobPostingInfo
+    if (!j) return null
+    const desc = String(j.jobDescription || '').replace(/<[^>]+>/g, ' ')
+    return {
+      company: titleCase(tenant),
+      position: j.title || '',
+      location: j.location || '',
+      salary: findSalary(desc),
+      employmentType: WORKDAY_TIME[String(j.timeType || '').toLowerCase()] || j.timeType || '',
+      contactName: '',
+      contactEmail: '',
+    }
+  } catch { return null }
+}
+
 app.post('/api/extract', async (req, res) => {
   const { url } = req.body || {}
   if (!url) return res.status(400).json({ error: 'A job URL is required.' })
 
   // Structured extractors first — these work even with no AI provider configured.
-  const structured = (await tryAshby(url)) || (await tryGreenhouse(url)) || (await tryLever(url))
+  const structured =
+    (await tryAshby(url)) ||
+    (await tryGreenhouse(url)) ||
+    (await tryLever(url)) ||
+    (await trySmartRecruiters(url)) ||
+    (await tryWorkable(url)) ||
+    (await tryWorkday(url))
   if (structured) return res.json(structured)
 
   const { ai } = await readConfig()

@@ -97,7 +97,10 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
               </button>
             </div>
             {!aiEnabled && (
-              <p className="hint-line">Tip: enable AI in <b>Settings → AI</b> to auto-fill from a link. Otherwise just type below.</p>
+              <p className="hint-line">
+                Links from <b>Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday</b> auto-fill
+                without any AI setup — just paste and hit Extract. For other sites, enable AI in <b>Settings → AI</b>, or type below.
+              </p>
             )}
             {msg && <p className={msg.type === 'ok' ? 'extract-success' : 'extract-error'}>{msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}</p>}
           </>

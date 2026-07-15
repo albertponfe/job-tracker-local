@@ -12,7 +12,10 @@ file on your machine (`data/applications.json`).
 - **Filter** by status with clickable stat cards.
 - **Edit, archive, and delete** any entry.
 - **Choose your own fields** — track only what you care about; add custom fields; nothing is forced.
-- **(Optional) AI auto-fill** — paste a job link and let a model fill in the details. Use a
+- **Auto-fill from a link — no AI needed for many sites.** Paste a job link and hit **Extract**.
+  Links from **Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday** fill in automatically
+  by reading each site's own public data — no API key, no setup, nothing sent to any AI.
+- **(Optional) AI auto-fill for everything else** — for other sites, let a model fill in the details. Use a
   **free local model** (Ollama) or **your own** OpenAI / OpenRouter / Anthropic key. Or skip AI entirely.
 - **(Optional) Import a Google Sheet** you already have — once — into your local copy.
 
@@ -45,6 +48,16 @@ Opens the app at **http://localhost:3000**.
 - The app only talks to the internet if **you** turn on a cloud AI provider or import a Google Sheet.
 - To back up or move your data, just copy `data/applications.json`. You can also **Export** to CSV/JSON from Settings.
 
+## Extracting job details from a link
+
+Hit **Extract** after pasting a job URL and the app fills in company, position, location, salary,
+and employment type for you.
+
+- **No AI required** for **Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday** links —
+  the app reads each site's own public data directly. This works out of the box with no keys or setup.
+- **Everything else** (a company's own careers page, smaller boards, etc.) falls back to AI extraction,
+  which you enable below. Turn it on once and Extract works on those pages too.
+
 ## Optional: free AI extraction with Ollama (no terminal)
 
 1. Install [Ollama](https://ollama.com) (free, open-source) — just run the installer.
@@ -55,7 +68,8 @@ Now the **Extract** button auto-fills a job's details from its link — with not
 (You can also plug in your own OpenAI / OpenRouter / Anthropic key instead.)
 
 > Note: big job boards (LinkedIn, Indeed, Glassdoor) block automated reading, so Extract won't
-> work on them. Direct company/ATS links (Greenhouse, Lever, Ashby, Workday, etc.) usually work fine.
+> work on them. Direct company/ATS links (Greenhouse, Lever, Ashby, SmartRecruiters, Workable,
+> Workday, etc.) work best — and the first six of those need no AI at all.
 
 ## Importing a Google Sheet
 
