@@ -61,9 +61,8 @@ This lets you paste a job link and have the details filled in automatically.
 Now the ✦ **Extract** button fills jobs in for you — and nothing you paste ever
 leaves your computer.
 
-> **Prefer your own cloud key?** In the same screen you can pick **OpenAI / OpenRouter /
-> Anthropic** and paste a key instead. OpenRouter even has free models (base URL
-> `https://openrouter.ai/api/v1`, a model ending in `:free`).
+> **Prefer your own cloud key?** In the same screen you can pick **OpenAI or Anthropic**
+> and paste a key instead.
 >
 > **No AI at all?** Totally fine — leave it on **None** and type job details yourself.
 >
@@ -106,7 +105,7 @@ Only **Company** is required; everything else is yours to shape.
 | Browser didn't open | Go to **http://localhost:3000** manually. |
 | Website not opening after double click | This is a normal Mac security warning. Since `start-mac.command` was downloaded, Apple blocks it until you approve it. Click **Done** instead of **Move to Trash**. Then open **System Settings → Privacy & Security**, scroll down until you see the message that `start-mac.command` was blocked, and click **Open Anyway**. After that, double-click `start-mac.command` again and choose **Open** when Mac asks. Or go to [Quick start](./README.md#quick-start-one-double-click) and open from Terminal manually. |
 | "Node.js is needed" keeps showing | After installing Node, fully close the window and start again (it needs a fresh window to see Node). |
-| Port 3000 already in use | Set a different port: create a file named `.env` with `PORT=3001` inside. |
+| Port 3000 already in use | From the app folder, run `PORT=3001 npm start` on macOS/Linux or `set PORT=3001 && npm start` in Windows Command Prompt. |
 | Extract says a site is blocked | That job board blocks bots — use the direct application (ATS) link, or type it in. |
 | Ollama "not running" | Make sure the Ollama app is installed and open, then click **Check again**. |
 | Something else!| Contact me at **albertponferrada@berkeley.edu**. |

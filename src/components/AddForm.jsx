@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { api, EXTRACTABLE } from '../lib/api'
+import AnimatedHeight from './AnimatedHeight'
+import Select from './Select'
 
 export default function AddForm({ fields, aiEnabled, initialData = null, onClose, onSaved, onError }) {
   const editMode = initialData !== null
@@ -73,17 +75,17 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="application-dialog-title">
         <div className="modal-header">
-          <h2>{editMode ? 'Edit Application' : 'Add Application'}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h2 id="application-dialog-title">{editMode ? 'Edit Application' : 'Add Application'}</h2>
+          <button className="modal-close" aria-label="Close dialog" onClick={onClose}>✕</button>
         </div>
 
         {urlField && (
           <>
             <div className="url-row">
               <input
-                className="input" type="url" placeholder={`Paste ${urlField.label.toLowerCase()}…`}
+                autoFocus className="input" type="url" placeholder={`Paste ${urlField.label.toLowerCase()}…`}
                 value={urlVal} onChange={set(urlKey)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleExtract() } }}
               />
@@ -96,25 +98,26 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
                 {extracting ? <span className="spinner-sm" /> : '✦ Extract'}
               </button>
             </div>
-            {!aiEnabled && (
-              <p className="hint-line">
-                Links from <b>Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday</b> auto-fill
-                without any AI setup — just paste and hit Extract. For other sites, enable AI in <b>Settings → AI</b>, or type below.
-              </p>
-            )}
-            {msg && <p className={msg.type === 'ok' ? 'extract-success' : 'extract-error'}>{msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}</p>}
+            <AnimatedHeight className="extract-notes">
+              {!aiEnabled && (
+                <p className="hint-line">
+                  Links from <b>Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday</b> auto-fill
+                  without any AI setup — just paste and hit Extract. For other sites, enable AI in <b>Settings → AI</b>, or type below.
+                </p>
+              )}
+              {msg && <p className={msg.type === 'ok' ? 'extract-success' : 'extract-error'}>{msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}</p>}
+            </AnimatedHeight>
           </>
         )}
 
         <form className="form-grid" onSubmit={handleSubmit}>
           {gridFields.map(f => (
             <div className="field" key={f.key}>
-              <label>{f.label}{f.key === 'company' ? ' *' : ''}</label>
+              <label htmlFor={`field-${f.key}`}>{f.label}{f.key === 'company' ? ' *' : ''}</label>
               {f.type === 'select'
-                ? <select className="input" value={values[f.key]} onChange={set(f.key)}>
-                    {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                ? <Select id={`field-${f.key}`} value={values[f.key]} options={f.options || []} onChange={value => setValues(v => ({ ...v, [f.key]: value }))} ariaLabel={f.label} />
                 : <input
+                    id={`field-${f.key}`}
                     className="input"
                     type={f.type === 'email' ? 'email' : 'text'}
                     value={values[f.key]}
@@ -126,8 +129,8 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
 
           {textAreas.map(f => (
             <div className="field field--full" key={f.key}>
-              <label>{f.label}</label>
-              <textarea className="input textarea" rows={3} value={values[f.key]} onChange={set(f.key)} />
+              <label htmlFor={`field-${f.key}`}>{f.label}</label>
+              <textarea id={`field-${f.key}`} className="input textarea" rows={3} value={values[f.key]} onChange={set(f.key)} />
             </div>
           ))}
 

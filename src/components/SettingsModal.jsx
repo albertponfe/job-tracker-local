@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
+import AnimatedHeight from './AnimatedHeight'
+import Select from './Select'
 
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 
@@ -123,6 +125,16 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
   })
   const [newField, setNewField] = useState('')
   const [saving, setSaving] = useState(false)
+  const tabOrder = ['fields', 'ai', 'data']
+
+  const moveTab = (event, current) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const index = tabOrder.indexOf(current)
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabOrder.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabOrder.length) % tabOrder.length
+    setTab(tabOrder[next])
+    event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[next]?.focus()
+  }
 
   // Repair an already-saved bad state (e.g. provider=anthropic but model=llama3.2,
   // or a legacy openai-compatible model that isn't in our OpenAI list) so opening
@@ -216,7 +228,7 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
       } else {
         const cols = fields.map(f => f.key)
         const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
-        const rows = [fields.map(f => f.label).join(',')]
+        const rows = [fields.map(f => esc(f.label)).join(',')]
         for (const a of applications) rows.push(cols.map(c => esc(a[c])).join(','))
         download('applications.csv', rows.join('\n'), 'text/csv')
       }
@@ -225,18 +237,19 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal modal--wide">
+      <div className="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
         <div className="modal-header">
-          <h2>Settings</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h2 id="settings-dialog-title">Settings</h2>
+          <button className="modal-close" aria-label="Close settings" onClick={onClose}>✕</button>
         </div>
 
-        <div className="tabs">
-          <button className={tab === 'fields' ? 'tab tab--active' : 'tab'} onClick={() => setTab('fields')}>Fields</button>
-          <button className={tab === 'ai' ? 'tab tab--active' : 'tab'} onClick={() => setTab('ai')}>AI Extraction</button>
-          <button className={tab === 'data' ? 'tab tab--active' : 'tab'} onClick={() => setTab('data')}>Import / Export</button>
+        <div className="tabs" role="tablist" aria-label="Settings sections">
+          <button autoFocus={tab === 'fields'} role="tab" aria-selected={tab === 'fields'} tabIndex={tab === 'fields' ? 0 : -1} className={tab === 'fields' ? 'tab tab--active' : 'tab'} onKeyDown={e => moveTab(e, 'fields')} onClick={() => setTab('fields')}>Fields</button>
+          <button autoFocus={tab === 'ai'} role="tab" aria-selected={tab === 'ai'} tabIndex={tab === 'ai' ? 0 : -1} className={tab === 'ai' ? 'tab tab--active' : 'tab'} onKeyDown={e => moveTab(e, 'ai')} onClick={() => setTab('ai')}>AI Extraction</button>
+          <button autoFocus={tab === 'data'} role="tab" aria-selected={tab === 'data'} tabIndex={tab === 'data' ? 0 : -1} className={tab === 'data' ? 'tab tab--active' : 'tab'} onKeyDown={e => moveTab(e, 'data')} onClick={() => setTab('data')}>Import / Export</button>
         </div>
 
+        <AnimatedHeight className="settings-content">
         {/* ── FIELDS ── */}
         {tab === 'fields' && (
           <div className="tab-body">
@@ -249,11 +262,11 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
                 <div className="field-row" key={f.key}>
                   <span className="fr-name">{f.label}{f.core ? <em className="fr-core"> (required)</em> : ''}</span>
                   <span className="fr-toggle">
-                    <input type="checkbox" checked={f.enabled} disabled={f.core}
+                    <input type="checkbox" aria-label={`${f.label}: track`} checked={f.enabled} disabled={f.core}
                       onChange={e => setField(f.key, { enabled: e.target.checked })} />
                   </span>
                   <span className="fr-toggle">
-                    <input type="checkbox" checked={!!f.table} disabled={!f.enabled}
+                    <input type="checkbox" aria-label={`${f.label}: show in table`} checked={!!f.table} disabled={!f.enabled}
                       onChange={e => setField(f.key, { table: e.target.checked })} />
                   </span>
                   <span className="fr-rm">
@@ -280,12 +293,9 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
             </p>
             <div className="field">
               <label>Provider</label>
-              <select className="input" value={ai.provider} onChange={e => {
-                const provider = e.target.value
+              <Select value={ai.provider} options={PROVIDERS} ariaLabel="AI provider" onChange={provider => {
                 setAi(a => ({ ...a, provider, model: PROVIDER_DEFAULT_MODEL[provider] ?? a.model }))
-              }}>
-                {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+              }} />
             </div>
 
             {ai.provider === 'ollama' && (
@@ -306,11 +316,12 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
             {ai.provider === 'openai' && (
               <>
                 <div className="field"><label>Model</label>
-                  <select className="input"
+                  <Select
                     value={OPENAI_MODELS.some(m => m.id === ai.model) ? ai.model : OPENAI_DEFAULT}
-                    onChange={e => setAi(a => ({ ...a, model: e.target.value }))}>
-                    {OPENAI_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                  </select></div>
+                    options={OPENAI_MODELS.map(m => ({ value: m.id, label: m.label }))}
+                    ariaLabel="OpenAI model"
+                    onChange={model => setAi(a => ({ ...a, model }))} />
+                </div>
                 <div className="field"><label>API key</label>
                   <input className="input" type="password" value={ai.apiKey} placeholder="sk-…"
                     onChange={e => setAi(a => ({ ...a, apiKey: e.target.value }))} /></div>
@@ -321,11 +332,12 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
             {ai.provider === 'anthropic' && (
               <>
                 <div className="field"><label>Model</label>
-                  <select className="input"
+                  <Select
                     value={ANTHROPIC_MODELS.some(m => m.id === ai.model) ? ai.model : ANTHROPIC_DEFAULT}
-                    onChange={e => setAi(a => ({ ...a, model: e.target.value }))}>
-                    {ANTHROPIC_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                  </select></div>
+                    options={ANTHROPIC_MODELS.map(m => ({ value: m.id, label: m.label }))}
+                    ariaLabel="Anthropic model"
+                    onChange={model => setAi(a => ({ ...a, model }))} />
+                </div>
                 <div className="field"><label>API key</label>
                   <input className="input" type="password" value={ai.apiKey} placeholder="sk-ant-…"
                     onChange={e => setAi(a => ({ ...a, apiKey: e.target.value }))} /></div>
@@ -378,13 +390,16 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
                         <span className="map-col-sample">{sampleFor(i)}</span>
                       </div>
                       <span className="map-arrow">→</span>
-                      <select className="input map-select" value={mapping[i]} onChange={e => setMap(i, e.target.value)}>
-                        <option value="__new__">➕ Create new field “{h || `Column ${i + 1}`}”</option>
-                        <option value="__ignore__">🚫 Ignore this column</option>
-                        <optgroup label="Map to existing field">
-                          {fields.map(f => <option key={f.key} value={f.key}>{f.label}{f.enabled ? '' : ' (hidden)'}</option>)}
-                        </optgroup>
-                      </select>
+                      <Select
+                        value={mapping[i]}
+                        ariaLabel={`Map ${h || `column ${i + 1}`}`}
+                        onChange={value => setMap(i, value)}
+                        options={[
+                          { value: '__new__', label: `➕ Create new field “${h || `Column ${i + 1}`}”` },
+                          { value: '__ignore__', label: '🚫 Ignore this column' },
+                          { label: 'Map to existing field', options: fields.map(f => ({ value: f.key, label: `${f.label}${f.enabled ? '' : ' (hidden)'}` })) },
+                        ]}
+                      />
                     </div>
                   ))}
                 </div>
@@ -399,6 +414,7 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
             )}
           </div>
         )}
+        </AnimatedHeight>
 
         <div className="form-actions" style={{ marginTop: '1.5rem' }}>
           <button className="btn-ghost" onClick={onClose}>Close</button>

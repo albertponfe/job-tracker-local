@@ -42,6 +42,18 @@ export default function App() {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    const closeTopmost = event => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (confirmTarget) setConfirmTarget(null)
+      else if (detailApp) setDetailApp(null)
+      else if (settingsTab) setSettingsTab(null)
+      else if (showForm || editApp) { setShowForm(false); setEditApp(null) }
+    }
+    document.addEventListener('keydown', closeTopmost)
+    return () => document.removeEventListener('keydown', closeTopmost)
+  }, [confirmTarget, detailApp, settingsTab, showForm, editApp])
+
   const handleSaved = () => { setShowForm(false); setEditApp(null); load(true) }
 
   const handleStatusChange = async (id, status) => {
@@ -127,6 +139,7 @@ export default function App() {
           onArchive={handleArchive}
           onDelete={setConfirmTarget}
           onAdd={() => setShowForm(true)}
+          onClearFilter={() => setFilter(null)}
         />
       </main>
 

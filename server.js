@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import express from 'express'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -50,86 +50,135 @@ const DEFAULT_CONFIG = {
 }
 
 // ── Tiny JSON file helpers ──
+async function writeJsonAtomic(file, value) {
+  const temp = `${file}.tmp`
+  await writeFile(temp, JSON.stringify(value, null, 2))
+  await rename(temp, file)
+}
+
+function mergeFields(savedFields) {
+  const saved = Array.isArray(savedFields) ? savedFields : []
+  if (saved.some(field => !field || typeof field !== 'object' || Array.isArray(field) || typeof field.key !== 'string')) {
+    throw new Error('Config fields must be objects with string keys.')
+  }
+  const defaults = new Map(DEFAULT_CONFIG.fields.map(field => [field.key, field]))
+  const savedKeys = new Set(saved.map(field => field.key))
+  return [
+    ...saved.map(field => ({ ...(defaults.get(field.key) || {}), ...field })),
+    ...DEFAULT_CONFIG.fields.filter(field => !savedKeys.has(field.key)).map(field => ({ ...field })),
+  ]
+}
+
 async function ensureData() {
   if (!existsSync(DATA_DIR)) await mkdir(DATA_DIR, { recursive: true })
-  if (!existsSync(APPS_FILE)) await writeFile(APPS_FILE, '[]')
-  if (!existsSync(CONFIG_FILE)) await writeFile(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2))
+  if (!existsSync(APPS_FILE)) await writeJsonAtomic(APPS_FILE, [])
+  if (!existsSync(CONFIG_FILE)) await writeJsonAtomic(CONFIG_FILE, DEFAULT_CONFIG)
 }
 async function readApps() {
-  try { return JSON.parse(await readFile(APPS_FILE, 'utf8')) } catch { return [] }
+  const apps = JSON.parse(await readFile(APPS_FILE, 'utf8'))
+  if (!Array.isArray(apps)) throw new Error('Applications data must be a JSON array.')
+  return apps
 }
 async function writeApps(apps) {
-  await writeFile(APPS_FILE, JSON.stringify(apps, null, 2))
+  await writeJsonAtomic(APPS_FILE, apps)
 }
 async function readConfig() {
-  try {
-    const cfg = JSON.parse(await readFile(CONFIG_FILE, 'utf8'))
-    // merge in any newly-added default fields so upgrades don't lose keys
-    return { ...DEFAULT_CONFIG, ...cfg, ai: { ...DEFAULT_CONFIG.ai, ...(cfg.ai || {}) } }
-  } catch { return DEFAULT_CONFIG }
+  const cfg = JSON.parse(await readFile(CONFIG_FILE, 'utf8'))
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) throw new Error('Config data must be a JSON object.')
+  if (cfg.fields != null && !Array.isArray(cfg.fields)) throw new Error('Config fields must be a JSON array.')
+  if (cfg.ai != null && (typeof cfg.ai !== 'object' || Array.isArray(cfg.ai))) throw new Error('Config AI settings must be a JSON object.')
+  return {
+    ...DEFAULT_CONFIG,
+    ...cfg,
+    fields: mergeFields(cfg.fields),
+    ai: { ...DEFAULT_CONFIG.ai, ...(cfg.ai || {}) },
+  }
 }
 async function writeConfig(cfg) {
-  await writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2))
+  await writeJsonAtomic(CONFIG_FILE, cfg)
 }
+
+let mutationTail = Promise.resolve()
+function serializeMutation(work) {
+  const result = mutationTail.then(work)
+  mutationTail = result.catch(() => {})
+  return result
+}
+
+const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next)
 
 const app = express()
 app.use(express.json({ limit: '2mb' }))
 
 // ─────────────────────────── Applications CRUD ───────────────────────────
 
-app.get('/api/applications', async (_req, res) => {
+app.get('/api/applications', asyncRoute(async (_req, res) => {
   const apps = await readApps()
   res.json({ applications: apps })
-})
+}))
 
-app.post('/api/applications', async (req, res) => {
-  const apps = await readApps()
-  const now = new Date()
-  const record = {
-    id: randomUUID(),
-    date: req.body.date || now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-    createdAt: now.toISOString(),
-    archived: false,
-    ...req.body,
-  }
-  record.id = record.id || randomUUID() // never let the client blank the id
-  apps.push(record)
-  await writeApps(apps)
+app.post('/api/applications', asyncRoute(async (req, res) => {
+  const record = await serializeMutation(async () => {
+    const apps = await readApps()
+    const now = new Date()
+    const next = {
+      id: randomUUID(),
+      date: req.body.date || now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      createdAt: now.toISOString(),
+      archived: false,
+      ...req.body,
+    }
+    next.id = next.id || randomUUID()
+    apps.push(next)
+    await writeApps(apps)
+    return next
+  })
   res.json({ application: record })
-})
+}))
 
-app.patch('/api/applications/:id', async (req, res) => {
-  const apps = await readApps()
-  const idx = apps.findIndex(a => a.id === req.params.id)
-  if (idx === -1) return res.status(404).json({ error: 'Not found' })
-  apps[idx] = { ...apps[idx], ...req.body, id: apps[idx].id } // id is immutable
-  await writeApps(apps)
-  res.json({ application: apps[idx] })
-})
+app.patch('/api/applications/:id', asyncRoute(async (req, res) => {
+  const record = await serializeMutation(async () => {
+    const apps = await readApps()
+    const idx = apps.findIndex(a => a.id === req.params.id)
+    if (idx === -1) return null
+    apps[idx] = { ...apps[idx], ...req.body, id: apps[idx].id }
+    await writeApps(apps)
+    return apps[idx]
+  })
+  if (!record) return res.status(404).json({ error: 'Not found' })
+  res.json({ application: record })
+}))
 
-app.delete('/api/applications/:id', async (req, res) => {
-  const apps = await readApps()
-  const next = apps.filter(a => a.id !== req.params.id)
-  await writeApps(next)
-  res.json({ ok: true, removed: apps.length - next.length })
-})
+app.delete('/api/applications/:id', asyncRoute(async (req, res) => {
+  const removed = await serializeMutation(async () => {
+    const apps = await readApps()
+    const next = apps.filter(a => a.id !== req.params.id)
+    await writeApps(next)
+    return apps.length - next.length
+  })
+  res.json({ ok: true, removed })
+}))
 
 // ─────────────────────────────── Config ──────────────────────────────────
 
-app.get('/api/config', async (_req, res) => {
+app.get('/api/config', asyncRoute(async (_req, res) => {
   res.json(await readConfig())
-})
+}))
 
-app.post('/api/config', async (req, res) => {
-  const current = await readConfig()
-  const next = {
-    ...current,
-    ...req.body,
-    ai: { ...current.ai, ...(req.body.ai || {}) },
-  }
-  await writeConfig(next)
+app.post('/api/config', asyncRoute(async (req, res) => {
+  const next = await serializeMutation(async () => {
+    const current = await readConfig()
+    const updated = {
+      ...current,
+      ...req.body,
+      fields: mergeFields(req.body.fields || current.fields),
+      ai: { ...current.ai, ...(req.body.ai || {}) },
+    }
+    await writeConfig(updated)
+    return updated
+  })
   res.json(next)
-})
+}))
 
 // ───────────────────────── AI extraction (optional) ──────────────────────
 
@@ -379,7 +428,7 @@ async function tryWorkday(url) {
   } catch { return null }
 }
 
-app.post('/api/extract', async (req, res) => {
+app.post('/api/extract', asyncRoute(async (req, res) => {
   const { url } = req.body || {}
   if (!url) return res.status(400).json({ error: 'A job URL is required.' })
 
@@ -465,7 +514,7 @@ ${pageText}`
   } catch (e) {
     res.status(500).json({ error: 'Extraction failed.', detail: String(e.message || e) })
   }
-})
+}))
 
 // ───────────────── One-time import from a public Google Sheet ─────────────
 
@@ -590,50 +639,53 @@ app.post('/api/import/gsheet', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'Paste your Google Sheet link.' })
   try {
     const { headers, rows } = await fetchSheetCsv(url)
-    const cfg = await readConfig()
-    const map = Array.isArray(mapping) ? mapping : headers.map(h => guessField(h, cfg.fields) || '__ignore__')
+    const result = await serializeMutation(async () => {
+      const cfg = await readConfig()
+      const map = Array.isArray(mapping) ? mapping : headers.map(h => guessField(h, cfg.fields) || '__ignore__')
+      const targets = []
+      let fieldsChanged = false
 
-    // Resolve each column to a stored field key (creating custom fields for __new__)
-    const targets = []
-    let fieldsChanged = false
-    headers.forEach((h, i) => {
-      const t = map[i]
-      if (t === '__new__') {
-        const label = String(h || '').trim() || `Field ${i + 1}`
-        const reserved = ['id', 'createdat', 'archived'] // system props on every record
-        let key = slugKey(label) || `field_${i}`
-        if (reserved.includes(key) || cfg.fields.some(f => f.key === key)) key = `${key}_${i}`
-        cfg.fields.push({ key, label, type: 'text', enabled: true, table: true, custom: true })
-        fieldsChanged = true
-        targets[i] = key
-      } else if (!t || t === '__ignore__') {
-        targets[i] = null
-      } else {
-        targets[i] = cfg.fields.some(f => f.key === t) ? t : null
-      }
-    })
-
-    const statusField = cfg.fields.find(f => f.key === 'status')
-    const defaultStatus = statusField?.options?.[0] || 'Applied'
-    const now = new Date()
-
-    const imported = rows.map(r => {
-      const rec = { id: randomUUID(), createdAt: now.toISOString(), archived: false }
-      let any = false
-      targets.forEach((key, i) => {
-        if (key && r[i] != null && String(r[i]).trim() !== '') { rec[key] = String(r[i]).trim(); any = true }
+      headers.forEach((h, i) => {
+        const target = map[i]
+        if (target === '__new__') {
+          const label = String(h || '').trim() || `Field ${i + 1}`
+          const reserved = ['id', 'createdat', 'archived']
+          let key = slugKey(label) || `field_${i}`
+          if (reserved.includes(key) || cfg.fields.some(f => f.key === key)) key = `${key}_${i}`
+          cfg.fields.push({ key, label, type: 'text', enabled: true, table: true, custom: true })
+          fieldsChanged = true
+          targets[i] = key
+        } else if (!target || target === '__ignore__') {
+          targets[i] = null
+        } else {
+          targets[i] = cfg.fields.some(f => f.key === target) ? target : null
+        }
       })
-      if (!rec.date) rec.date = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-      if (cfg.fields.some(f => f.key === 'status') && !rec.status) rec.status = defaultStatus
-      return any ? rec : null
-    }).filter(Boolean)
 
-    if (imported.length === 0) return res.status(422).json({ error: 'No rows to import — check your column mapping.' })
+      const statusOptions = cfg.fields.find(f => f.key === 'status')?.options || []
+      const defaultStatus = statusOptions.includes('Applied') ? 'Applied' : (statusOptions[0] || 'Applied')
+      const now = new Date()
+      const imported = rows.map(row => {
+        const record = { id: randomUUID(), createdAt: now.toISOString(), archived: false }
+        let any = false
+        targets.forEach((key, i) => {
+          if (key && row[i] != null && String(row[i]).trim() !== '') {
+            record[key] = String(row[i]).trim()
+            any = true
+          }
+        })
+        if (!record.date) record.date = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+        if (cfg.fields.some(f => f.key === 'status') && !record.status) record.status = defaultStatus
+        return any ? record : null
+      }).filter(Boolean)
 
-    if (fieldsChanged) await writeConfig(cfg)
-    const apps = await readApps()
-    await writeApps([...apps, ...imported])
-    res.json({ imported: imported.length, fieldsAdded: fieldsChanged })
+      if (imported.length === 0) throw { status: 422, message: 'No rows to import — check your column mapping.' }
+      const apps = await readApps()
+      if (fieldsChanged) await writeConfig(cfg)
+      await writeApps([...apps, ...imported])
+      return { imported: imported.length, fieldsAdded: fieldsChanged }
+    })
+    res.json(result)
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message || 'Import failed', detail: e.detail })
   }
@@ -671,6 +723,12 @@ app.post('/api/ai/ollama-pull', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) })
   }
+})
+
+app.use('/api', (err, _req, res, next) => {
+  if (res.headersSent) return next(err)
+  console.error(err)
+  res.status(500).json({ error: 'Could not read or save local data.' })
 })
 
 // ─────────────────────────── Static app + fallback ───────────────────────

@@ -29,11 +29,11 @@ export default function StatCards({ applications, statusOptions, filter, onSelec
             key={c.label}
             className={`stat-card${active ? ' stat-card--active' : ''}`}
             style={{ '--card-accent': accent }}
+            aria-pressed={active}
             onClick={() => onSelect(c.key)}
           >
-            <span className="stat-bar" />
-            <span className="stat-num">{c.value}</span>
             <span className="stat-label">{c.label}</span>
+            <span className="stat-num">{c.value}</span>
           </button>
         )
       })}

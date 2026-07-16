@@ -1,3 +1,5 @@
+import Select from './Select'
+
 export const STATUS_STYLES = {
   'To Apply': { bg: 'rgba(6,182,212,0.14)',   color: '#22d3ee', border: 'rgba(6,182,212,0.35)' },
   Applied:   { bg: 'rgba(99,102,241,0.14)',  color: '#818cf8', border: 'rgba(99,102,241,0.35)' },
@@ -47,16 +49,14 @@ function StatusSelect({ value, options, onChange }) {
   const v = value || options[0]
   const style = STATUS_STYLES[v] || DEFAULT_STATUS_STYLE
   return (
-    <span className="status-select-wrap" style={{ color: style.color }}>
-      <select
-        className="status-select"
-        value={v}
-        onChange={e => onChange(e.target.value)}
-        style={{ background: style.bg, color: style.color, borderColor: style.border }}
-      >
-        {options.map(s => <option key={s} value={s}>{s}</option>)}
-      </select>
-    </span>
+    <Select
+      value={v}
+      options={options}
+      onChange={onChange}
+      ariaLabel="Application status"
+      variant="status"
+      style={{ '--select-tone': style.color, '--select-tint': style.bg }}
+    />
   )
 }
 
@@ -85,12 +85,11 @@ function Cell({ field, app, onStatusChange }) {
   return <span className={`cell-clamp ${field.type === 'text' && field.key === 'position' ? '' : 'td-muted'}`} title={val}>{val}</span>
 }
 
-function Row({ app, tableFields, onOpen, onStatusChange, onEdit, onArchive, onDelete, isArchived, animDelay }) {
+function Row({ app, tableFields, onOpen, onStatusChange, onEdit, onArchive, onDelete, isArchived }) {
   const stop = (e) => e.stopPropagation()
   return (
     <tr
       className={`row-click${isArchived ? ' tr-archived' : ''}`}
-      style={{ animationDelay: `${animDelay}ms` }}
       onClick={() => onOpen(app)}
       title="Click to view details"
     >
@@ -115,7 +114,7 @@ function Row({ app, tableFields, onOpen, onStatusChange, onEdit, onArchive, onDe
   )
 }
 
-export default function AppTable({ fields, applications, archivedApps = [], filter, onOpen, onStatusChange, onEdit, onArchive, onDelete, onAdd }) {
+export default function AppTable({ fields, applications, archivedApps = [], filter, onOpen, onStatusChange, onEdit, onArchive, onDelete, onAdd, onClearFilter }) {
   const tableFields = fields.filter(f => f.enabled && f.table)
   const colCount = tableFields.length + 1
   const hasActive = applications.length > 0
@@ -125,12 +124,11 @@ export default function AppTable({ fields, applications, archivedApps = [], filt
     return (
       <div className="empty-state">
         <p className="empty-icon">{filter ? '🔍' : '📭'}</p>
-        <p>{filter ? `No ${filter.toLowerCase()} applications.` : 'No applications yet.'}</p>
-        <p className="empty-sub">
-          {filter
-            ? 'Try another status or clear the filter.'
-            : <>Click <button className="link-btn" onClick={onAdd}>+ Add Application</button> to track your first one.</>}
-        </p>
+        <h2>{filter ? `No ${filter.toLowerCase()} applications` : 'No applications yet'}</h2>
+        <p className="empty-sub">{filter ? 'Try another status or return to the full list.' : 'Add your first role to start building your pipeline.'}</p>
+        <button className="empty-action" onClick={filter ? onClearFilter : onAdd}>
+          {filter ? 'Show all applications' : '+ Add Application'}
+        </button>
       </div>
     )
   }
@@ -143,20 +141,20 @@ export default function AppTable({ fields, applications, archivedApps = [], filt
         <thead>
           <tr>
             {tableFields.map(f => <th key={f.key} style={{ width: colWidth(f) }}>{f.label}</th>)}
-            <th style={{ width: '118px' }}>Actions</th>
+            <th style={{ width: '140px' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {applications.map((app, i) => (
-            <Row key={app.id} app={app} animDelay={Math.min(i * 35, 400)} {...rowProps} />
+          {applications.map(app => (
+            <Row key={app.id} app={app} {...rowProps} />
           ))}
 
           {hasArchived && (
             <tr className="archived-section-row"><td colSpan={colCount}>Archived ({archivedApps.length})</td></tr>
           )}
 
-          {archivedApps.map((app, i) => (
-            <Row key={app.id} app={app} isArchived animDelay={Math.min(i * 35, 300)} {...rowProps} />
+          {archivedApps.map(app => (
+            <Row key={app.id} app={app} isArchived {...rowProps} />
           ))}
         </tbody>
       </table>

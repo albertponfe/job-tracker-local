@@ -34,7 +34,7 @@ export default function DetailModal({ app, fields, onClose, onEdit }) {
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal modal--detail">
+      <div className="modal modal--detail" role="dialog" aria-modal="true" aria-labelledby="detail-dialog-title">
         <div className="modal-header">
           <div className="detail-title">
             {app.company && (
@@ -43,11 +43,11 @@ export default function DetailModal({ app, fields, onClose, onEdit }) {
               </span>
             )}
             <div>
-              <h2>{app.company || 'Application'}</h2>
+              <h2 id="detail-dialog-title">{app.company || 'Application'}</h2>
               {app.position && <p className="detail-subtitle">{app.position}</p>}
             </div>
           </div>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button autoFocus className="modal-close" aria-label="Close details" onClick={onClose}>✕</button>
         </div>
 
         <div className="detail-list">

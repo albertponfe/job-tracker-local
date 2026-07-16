@@ -16,7 +16,7 @@ file on your machine (`data/applications.json`).
   Links from **Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday** fill in automatically
   by reading each site's own public data — no API key, no setup, nothing sent to any AI.
 - **(Optional) AI auto-fill for everything else** — for other sites, let a model fill in the details. Use a
-  **free local model** (Ollama) or **your own** OpenAI / OpenRouter / Anthropic key. Or skip AI entirely.
+  **free local model** (Ollama) or **your own** OpenAI or Anthropic key. Or skip AI entirely.
 - **(Optional) Import a Google Sheet** you already have — once — into your local copy.
 
 ## Quick start (one double-click)
@@ -65,7 +65,7 @@ and employment type for you.
    **⬇ Download model** button fetches the model for you. When it says "Ready," click **Save**.
 
 Now the **Extract** button auto-fills a job's details from its link — with nothing leaving your computer.
-(You can also plug in your own OpenAI / OpenRouter / Anthropic key instead.)
+(You can also plug in your own OpenAI or Anthropic key instead.)
 
 > Note: big job boards (LinkedIn, Indeed, Glassdoor) block automated reading, so Extract won't
 > work on them. Direct company/ATS links (Greenhouse, Lever, Ashby, SmartRecruiters, Workable,
@@ -84,7 +84,7 @@ Nothing is imported until you confirm, so nothing is lost or misplaced.
 |---|---|
 | Browser didn't open | Go to **http://localhost:3000** manually. |
 | "Node.js is needed" keeps showing | After installing Node, fully close the window and start again (it needs a fresh window to see Node). |
-| Port 3000 already in use | Set a different port: create a file named `.env` with `PORT=3001` inside. |
+| Port 3000 already in use | From the app folder, run `PORT=3001 npm start` on macOS/Linux or `set PORT=3001 && npm start` in Windows Command Prompt. |
 | Extract says a site is blocked | That job board blocks bots — use the direct application (ATS) link, or type it in. |
 | Ollama "not running" | Make sure the Ollama app is installed and open, then click **Check again**. |
 | Something else!| Contact me at **albertponferrada@berkeley.edu**. |
