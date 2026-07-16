@@ -91,7 +91,7 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
                 className="btn-extract"
                 onClick={handleExtract}
                 disabled={!urlVal?.trim() || extracting}
-                title={aiEnabled ? 'Auto-fill from the URL using AI' : 'Set up AI in Settings to enable this'}
+                title={aiEnabled ? 'Auto-fill from the URL using built-in extraction or AI' : 'Auto-fill supported job sites without AI'}
               >
                 {extracting ? <span className="spinner-sm" /> : '✦ Extract'}
               </button>

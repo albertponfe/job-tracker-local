@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 
 const PROVIDERS = [
-  { value: 'none', label: 'None (manual entry only)' },
+  { value: 'none', label: 'None (built-in sites still work)' },
   { value: 'ollama', label: 'Ollama — free, runs locally' },
   { value: 'openai', label: 'OpenAI (your key)' },
   { value: 'anthropic', label: 'Anthropic Claude (your key)' },
@@ -275,7 +275,7 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
         {tab === 'ai' && (
           <div className="tab-body">
             <p className="tab-intro">
-              AI is optional — it only powers the ✦ <b>Extract</b> button that auto-fills a job's details from its link.
+              AI is optional — it lets ✦ <b>Extract</b> auto-fill details from sites that the built-in extractors don't support.
               The easiest free option is <b>Ollama</b>, which runs on your own computer.
             </p>
             <div className="field">
