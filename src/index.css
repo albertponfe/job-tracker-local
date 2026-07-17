@@ -172,9 +172,9 @@ a:hover { text-decoration: underline; }
 
 .stat-cards { display: flex; gap: var(--space-1); margin-bottom: var(--space-4); overflow-x: auto; scrollbar-width: none; }
 .stat-cards::-webkit-scrollbar { display: none; }
-.stat-cards[data-fade-right] { mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
-.stat-cards[data-fade-left] { mask-image: linear-gradient(to right, transparent, #000 44px); }
-.stat-cards[data-fade-left][data-fade-right] { mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent); }
+.stat-cards[data-fade-right] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
+.stat-cards[data-fade-left] { -webkit-mask-image: linear-gradient(to right, transparent, #000 44px); mask-image: linear-gradient(to right, transparent, #000 44px); }
+.stat-cards[data-fade-left][data-fade-right] { -webkit-mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent); }
 .stat-card {
   min-width: 126px; min-height: 72px; flex: 1 0 auto; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4);
   overflow: hidden; background: var(--surface); text-align: left; transition: background-color var(--quick);
