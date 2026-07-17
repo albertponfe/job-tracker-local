@@ -179,7 +179,7 @@ a:hover { text-decoration: underline; }
 :root[data-theme='light'] .stat-card--active, :root[data-theme='light'] .stat-card--active:hover { background: color-mix(in srgb, var(--card-accent) 14%, var(--surface)); }
 .stat-label { min-width: 0; overflow: hidden; color: color-mix(in srgb, var(--card-accent) 70%, var(--muted)); font-size: 0.8rem; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
 .stat-card--active .stat-label { color: color-mix(in srgb, var(--card-accent) 75%, var(--text)); }
-.stat-num { flex: 0 0 auto; color: color-mix(in srgb, var(--card-accent) 72%, var(--text)); font-size: 1.4rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.045em; line-height: 1; }
+.stat-num { flex: 0 0 auto; color: color-mix(in srgb, var(--card-accent) 72%, var(--text)); font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1; }
 
 .table-shell { position: relative; min-width: 0; border-radius: var(--radius); box-shadow: var(--surface-shadow); }
 .table-shell::before { content: ''; position: absolute; top: 0; bottom: 10px; left: 0; z-index: 4; width: 36px; pointer-events: none; opacity: 0; background: linear-gradient(to right, var(--surface), transparent); border-radius: var(--radius) 0 0 var(--radius); transition: opacity var(--quick); }
@@ -395,7 +395,6 @@ label { color: var(--label); font-size: 0.76rem; font-weight: 560; }
 
 @media (min-width: 721px) and (max-width: 1100px) {
   .stat-card { min-width: 0; gap: 8px; padding-inline: 10px; }
-  .stat-label { font-size: 0.74rem; }
   .stat-num { font-size: 1.2rem; }
 }
 
