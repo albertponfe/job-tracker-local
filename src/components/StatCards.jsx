@@ -10,6 +10,8 @@ const CARD_ACCENT = {
 }
 
 export default function StatCards({ applications, statusOptions, filter, onSelect }) {
+  const cardsRef = useRef(null)
+  const [fadeRight, setFadeRight] = useState(false)
   const counts = {}
   for (const s of statusOptions) counts[s] = 0
   for (const a of applications) if (a.status in counts) counts[a.status]++
@@ -19,8 +21,24 @@ export default function StatCards({ applications, statusOptions, filter, onSelec
     ...statusOptions.map(s => ({ label: s, value: counts[s], key: s })),
   ]
 
+  useEffect(() => {
+    const el = cardsRef.current
+    if (!el) return
+    const updateFade = () => {
+      const overflow = el.scrollWidth > el.clientWidth + 1
+      setFadeRight(overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1)
+    }
+    const observer = new ResizeObserver(updateFade)
+    observer.observe(el)
+    updateFade()
+    return () => observer.disconnect()
+  }, [cards.length])
+
   return (
-    <div className="stat-cards">
+    <div ref={cardsRef} className={`stat-cards${fadeRight ? ' stat-cards--fade' : ''}`} onScroll={() => {
+      const el = cardsRef.current
+      if (el) setFadeRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 1)
+    }}>
       {cards.map(c => {
         const accent = CARD_ACCENT[c.label] || '#818cf8'
         const active = filter === c.key || (c.key === null && filter === null)
@@ -40,3 +58,4 @@ export default function StatCards({ applications, statusOptions, filter, onSelec
     </div>
   )
 }
+import { useEffect, useRef, useState } from 'react'

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
 import AnimatedHeight from './AnimatedHeight'
+import Modal from './Modal'
 import Select from './Select'
 
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
@@ -83,7 +84,7 @@ function OllamaSetup({ ai, setAi }) {
         <p className="hint-line">Checking for Ollama…</p>
       ) : !state.running ? (
         <>
-          <p className="ollama-status ollama-status--off">● Ollama isn't running on this computer yet.</p>
+          <p role="status" className="ollama-status ollama-status--off">● Ollama isn't running on this computer yet.</p>
           <p className="hint-line">Install it once (free, a few minutes). Everything stays on your machine — nothing is uploaded.</p>
           <div className="export-row">
             <a className="btn-primary" href="https://ollama.com/download" target="_blank" rel="noopener">↗ Download Ollama</a>
@@ -92,13 +93,13 @@ function OllamaSetup({ ai, setAi }) {
         </>
       ) : modelReady ? (
         <>
-          <p className="ollama-status ollama-status--on">● Ready — Ollama is running and “{wantModel}” is installed.</p>
+          <p role="status" className="ollama-status ollama-status--on">● Ready — Ollama is running and “{wantModel}” is installed.</p>
           <p className="hint-line">Click <b>Save settings</b> below and the ✦ Extract button will auto-fill jobs from a link.</p>
           <button className="btn-ghost" onClick={check} disabled={checking}>{checking ? 'Refreshing…' : '↻ Refresh'}</button>
         </>
       ) : (
         <>
-          <p className="ollama-status ollama-status--on">● Ollama is running. One more step — download the model:</p>
+          <p role="status" className="ollama-status ollama-status--on">● Ollama is running. One more step — download the model:</p>
           <div className="export-row">
             <button className="btn-primary" onClick={pull} disabled={pullStarted}>
               {pullStarted ? 'Downloading…' : `⬇ Download “${wantModel}” (~2 GB)`}
@@ -117,6 +118,7 @@ function OllamaSetup({ ai, setAi }) {
 export default function SettingsModal({ config, onClose, onSaved, onError, initialTab }) {
   const [tab, setTab] = useState(initialTab || 'fields')
   const [fields, setFields] = useState(config.fields.map(f => ({ ...f })))
+  const [savedFields, setSavedFields] = useState(config.fields.map(f => ({ ...f })))
   // Legacy configs may still say 'openai-compatible' — treat that as OpenAI.
   const [ai, setAi] = useState(() => {
     const a = { ...config.ai }
@@ -148,13 +150,13 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
     }
   }, [ai.provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // import flow
   const [sheetUrl, setSheetUrl] = useState('')
   const [preview, setPreview] = useState(null)
   const [mapping, setMapping] = useState([])
   const [previewing, setPreviewing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState(null)
+  const fieldsDirty = JSON.stringify(fields) !== JSON.stringify(savedFields)
 
   const setField = (key, patch) => setFields(fs => fs.map(f => (f.key === key ? { ...f, ...patch } : f)))
 
@@ -169,12 +171,11 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
 
   const removeField = (key) => setFields(fs => fs.filter(f => f.key !== key))
 
-  const save = async () => {
+  const save = async (close) => {
     setSaving(true)
     try {
       const next = await api.saveConfig({ fields, ai })
-      onSaved(next)
-      onClose()
+      close(() => onSaved(next))
     } catch (e) {
       onError?.('Could not save settings: ' + e.message)
     } finally {
@@ -182,9 +183,12 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
     }
   }
 
-  // ── Import: step 1 (preview) ──
   const runPreview = async () => {
     if (!sheetUrl.trim()) return
+    if (fieldsDirty) {
+      setImportMsg({ type: 'err', text: 'Save your field changes before importing.' })
+      return
+    }
     setPreviewing(true); setImportMsg(null)
     try {
       const p = await api.previewGSheet(sheetUrl.trim())
@@ -197,13 +201,17 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
     }
   }
 
-  // ── Import: step 2 (confirm with mapping) ──
   const runImport = async () => {
+    if (fieldsDirty) {
+      setImportMsg({ type: 'err', text: 'Save your field changes before importing.' })
+      return
+    }
     setImporting(true); setImportMsg(null)
     try {
       const r = await api.importGSheet(sheetUrl.trim(), mapping)
-      const fresh = await api.getConfig()      // pick up any newly-created fields
+      const fresh = r.config
       setFields(fresh.fields.map(f => ({ ...f })))
+      setSavedFields(fresh.fields.map(f => ({ ...f })))
       setImportMsg({ type: 'ok', text: `Imported ${r.imported} application${r.imported !== 1 ? 's' : ''}.${r.fieldsAdded ? ' New columns were added to your table.' : ''}` })
       setPreview(null); setSheetUrl('')
       onSaved(fresh)                            // reload the main list
@@ -236,11 +244,11 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
+    <Modal className="modal--wide" onClose={onClose} labelledBy="settings-dialog-title">
+      {close => <>
         <div className="modal-header">
           <h2 id="settings-dialog-title">Settings</h2>
-          <button className="modal-close" aria-label="Close settings" onClick={onClose}>✕</button>
+          <button className="modal-close" aria-label="Close settings" onClick={() => close()}>✕</button>
         </div>
 
         <div className="tabs" role="tablist" aria-label="Settings sections">
@@ -250,7 +258,6 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
         </div>
 
         <AnimatedHeight className="settings-content">
-        {/* ── FIELDS ── */}
         {tab === 'fields' && (
           <div className="tab-body">
             <p className="tab-intro">Choose which fields you want to track. Nothing is required except a company name.</p>
@@ -276,7 +283,7 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
               ))}
             </div>
             <div className="add-field-row">
-              <input className="input" placeholder="Add a custom field (e.g. Referral, Deadline)…"
+              <input className="input" aria-label="New field name" placeholder="Add a custom field (e.g. Referral, Deadline)…"
                 value={newField} onChange={e => setNewField(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addField() } }} />
               <button className="btn-ghost" onClick={addField}>+ Add field</button>
@@ -284,7 +291,6 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
           </div>
         )}
 
-        {/* ── AI ── */}
         {tab === 'ai' && (
           <div className="tab-body">
             <p className="tab-intro">
@@ -292,8 +298,8 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
               The easiest free option is <b>Ollama</b>, which runs on your own computer.
             </p>
             <div className="field">
-              <label>Provider</label>
-              <Select value={ai.provider} options={PROVIDERS} ariaLabel="AI provider" onChange={provider => {
+              <label htmlFor="ai-provider">Provider</label>
+              <Select id="ai-provider" value={ai.provider} options={PROVIDERS} ariaLabel="AI provider" onChange={provider => {
                 setAi(a => ({ ...a, provider, model: PROVIDER_DEFAULT_MODEL[provider] ?? a.model }))
               }} />
             </div>
@@ -303,11 +309,11 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
                 <OllamaSetup ai={ai} setAi={setAi} />
                 <details className="advanced">
                   <summary>Advanced</summary>
-                  <div className="field" style={{ marginTop: '.8rem' }}><label>Model</label>
-                    <input className="input" value={ai.model} placeholder="llama3.2"
+                  <div className="field" style={{ marginTop: '.8rem' }}><label htmlFor="ollama-model">Model</label>
+                    <input id="ollama-model" className="input" value={ai.model} placeholder="llama3.2"
                       onChange={e => setAi(a => ({ ...a, model: e.target.value }))} /></div>
-                  <div className="field"><label>Ollama URL</label>
-                    <input className="input" value={ai.baseUrl} placeholder="http://localhost:11434"
+                  <div className="field"><label htmlFor="ollama-url">Ollama URL</label>
+                    <input id="ollama-url" className="input" value={ai.baseUrl} placeholder="http://localhost:11434"
                       onChange={e => setAi(a => ({ ...a, baseUrl: e.target.value }))} /></div>
                 </details>
               </>
@@ -315,15 +321,16 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
 
             {ai.provider === 'openai' && (
               <>
-                <div className="field"><label>Model</label>
+                <div className="field"><label htmlFor="openai-model">Model</label>
                   <Select
+                    id="openai-model"
                     value={OPENAI_MODELS.some(m => m.id === ai.model) ? ai.model : OPENAI_DEFAULT}
                     options={OPENAI_MODELS.map(m => ({ value: m.id, label: m.label }))}
                     ariaLabel="OpenAI model"
                     onChange={model => setAi(a => ({ ...a, model }))} />
                 </div>
-                <div className="field"><label>API key</label>
-                  <input className="input" type="password" value={ai.apiKey} placeholder="sk-…"
+                <div className="field"><label htmlFor="openai-key">API key</label>
+                  <input id="openai-key" className="input" type="password" value={ai.apiKey} placeholder="sk-…"
                     onChange={e => setAi(a => ({ ...a, apiKey: e.target.value }))} /></div>
                 <p className="hint-line">Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>. GPT-4o mini is cheapest and plenty for this.</p>
               </>
@@ -331,15 +338,16 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
 
             {ai.provider === 'anthropic' && (
               <>
-                <div className="field"><label>Model</label>
+                <div className="field"><label htmlFor="anthropic-model">Model</label>
                   <Select
+                    id="anthropic-model"
                     value={ANTHROPIC_MODELS.some(m => m.id === ai.model) ? ai.model : ANTHROPIC_DEFAULT}
                     options={ANTHROPIC_MODELS.map(m => ({ value: m.id, label: m.label }))}
                     ariaLabel="Anthropic model"
                     onChange={model => setAi(a => ({ ...a, model }))} />
                 </div>
-                <div className="field"><label>API key</label>
-                  <input className="input" type="password" value={ai.apiKey} placeholder="sk-ant-…"
+                <div className="field"><label htmlFor="anthropic-key">API key</label>
+                  <input id="anthropic-key" className="input" type="password" value={ai.apiKey} placeholder="sk-ant-…"
                     onChange={e => setAi(a => ({ ...a, apiKey: e.target.value }))} /></div>
                 <p className="hint-line">Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Haiku is cheapest and plenty for this.</p>
               </>
@@ -349,25 +357,25 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
           </div>
         )}
 
-        {/* ── DATA (import / export) ── */}
         {tab === 'data' && (
           <div className="tab-body">
             {!preview ? (
               <>
                 <p className="tab-intro">Already have a Google Sheet of applications? Bring it in once — the data then lives on your machine.</p>
                 <div className="field">
-                  <label>Google Sheet link</label>
-                  <input className="input" placeholder="https://docs.google.com/spreadsheets/d/…"
+                  <label htmlFor="sheet-url">Google Sheet link</label>
+                  <input id="sheet-url" className="input" placeholder="https://docs.google.com/spreadsheets/d/…"
                     value={sheetUrl} onChange={e => setSheetUrl(e.target.value)} />
                 </div>
                 <p className="hint-line">In Google Sheets: <b>Share → General access → “Anyone with the link” → Viewer</b>. Then open the tab with your data and copy the link from your <b>browser's address bar</b> (not the Share button) — it includes the exact tab. Column names don't need to match; you'll map them next.</p>
-                <button className="btn-primary" onClick={runPreview} disabled={previewing || !sheetUrl.trim()}>
+                {fieldsDirty && <p className="extract-error">Save your field changes before importing.</p>}
+                <button className="btn-primary" onClick={runPreview} disabled={previewing || !sheetUrl.trim() || fieldsDirty}>
                   {previewing ? 'Reading sheet…' : 'Preview & map columns →'}
                 </button>
-                {importMsg && <p className={importMsg.type === 'ok' ? 'extract-success' : 'extract-error'} style={{ marginTop: '.8rem' }}>{importMsg.text}</p>}
+                {importMsg && <p role={importMsg.type === 'ok' ? 'status' : 'alert'} className={importMsg.type === 'ok' ? 'extract-success' : 'extract-error'} style={{ marginTop: '.8rem' }}>{importMsg.text}</p>}
 
                 <hr className="divider" />
-                <p className="tab-intro">Export a backup of everything (nothing leaves your machine unless you share the file).</p>
+                <p className="tab-intro">Export your application rows (nothing leaves your machine unless you share the file). For a complete backup, copy the data folder.</p>
                 <div className="export-row">
                   <button className="btn-ghost" onClick={() => exportData('csv')}>⬇ Export CSV</button>
                   <button className="btn-ghost" onClick={() => exportData('json')}>⬇ Export JSON</button>
@@ -397,19 +405,20 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
                         options={[
                           { value: '__new__', label: `➕ Create new field “${h || `Column ${i + 1}`}”` },
                           { value: '__ignore__', label: '🚫 Ignore this column' },
-                          { label: 'Map to existing field', options: fields.map(f => ({ value: f.key, label: `${f.label}${f.enabled ? '' : ' (hidden)'}` })) },
+                          { label: 'Map to existing field', options: savedFields.map(f => ({ value: f.key, label: `${f.label}${f.enabled ? '' : ' (hidden)'}` })) },
                         ]}
                       />
                     </div>
                   ))}
                 </div>
+                {fieldsDirty && <p className="extract-error">Save your field changes before importing.</p>}
                 <div className="form-actions" style={{ marginTop: '1rem' }}>
                   <button className="btn-ghost" onClick={() => { setPreview(null); setImportMsg(null) }}>← Back</button>
-                  <button className="btn-primary" onClick={runImport} disabled={importing}>
+                  <button className="btn-primary" onClick={runImport} disabled={importing || fieldsDirty}>
                     {importing ? 'Importing…' : `Import ${preview.rowCount} row${preview.rowCount !== 1 ? 's' : ''}`}
                   </button>
                 </div>
-                {importMsg && <p className={importMsg.type === 'ok' ? 'extract-success' : 'extract-error'} style={{ marginTop: '.8rem' }}>{importMsg.text}</p>}
+                {importMsg && <p role={importMsg.type === 'ok' ? 'status' : 'alert'} className={importMsg.type === 'ok' ? 'extract-success' : 'extract-error'} style={{ marginTop: '.8rem' }}>{importMsg.text}</p>}
               </>
             )}
           </div>
@@ -417,10 +426,10 @@ export default function SettingsModal({ config, onClose, onSaved, onError, initi
         </AnimatedHeight>
 
         <div className="form-actions" style={{ marginTop: '1.5rem' }}>
-          <button className="btn-ghost" onClick={onClose}>Close</button>
-          <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+          <button className="btn-ghost" onClick={() => close()}>Close</button>
+          <button className="btn-primary" onClick={() => save(close)} disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
         </div>
-      </div>
-    </div>
+      </>}
+    </Modal>
   )
 }

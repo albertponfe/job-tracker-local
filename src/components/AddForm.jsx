@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api, EXTRACTABLE } from '../lib/api'
 import AnimatedHeight from './AnimatedHeight'
+import Modal from './Modal'
 import Select from './Select'
 
 export default function AddForm({ fields, aiEnabled, initialData = null, onClose, onSaved, onError }) {
@@ -35,6 +36,7 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
   const urlVal = urlKey ? values[urlKey] : ''
 
   const handleExtract = async () => {
+    if (extracting) return
     if (!urlVal?.trim()) return
     setExtracting(true); setMsg(null)
     try {
@@ -58,14 +60,14 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
 
   const companyMissing = enabled.some(f => f.key === 'company') && !values.company?.trim()
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = close => async (e) => {
     e.preventDefault()
     if (companyMissing) return
     setSaving(true)
     try {
       if (editMode) await api.updateApplication(initialData.id, values)
       else await api.addApplication(values)
-      onSaved()
+      close(onSaved)
     } catch (err) {
       onError?.('Save failed: ' + err.message)
     } finally {
@@ -74,11 +76,11 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="application-dialog-title">
+    <Modal onClose={onClose} labelledBy="application-dialog-title">
+      {close => <>
         <div className="modal-header">
           <h2 id="application-dialog-title">{editMode ? 'Edit Application' : 'Add Application'}</h2>
-          <button className="modal-close" aria-label="Close dialog" onClick={onClose}>✕</button>
+          <button className="modal-close" aria-label="Close dialog" onClick={() => close()}>✕</button>
         </div>
 
         {urlField && (
@@ -102,15 +104,15 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
               {!aiEnabled && (
                 <p className="hint-line">
                   Links from <b>Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday</b> auto-fill
-                  without any AI setup — just paste and hit Extract. For other sites, enable AI in <b>Settings → AI</b>, or type below.
+                  without any AI setup — just paste and hit Extract. For other sites, click <b>AI</b> in the header, or type below.
                 </p>
               )}
-              {msg && <p className={msg.type === 'ok' ? 'extract-success' : 'extract-error'}>{msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}</p>}
+              {msg && <p role={msg.type === 'ok' ? 'status' : 'alert'} className={msg.type === 'ok' ? 'extract-success' : 'extract-error'}>{msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}</p>}
             </AnimatedHeight>
           </>
         )}
 
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid" onSubmit={handleSubmit(close)}>
           {gridFields.map(f => (
             <div className="field" key={f.key}>
               <label htmlFor={`field-${f.key}`}>{f.label}{f.key === 'company' ? ' *' : ''}</label>
@@ -135,13 +137,13 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
           ))}
 
           <div className="form-actions">
-            <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-ghost" onClick={() => close()}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={saving || companyMissing}>
               {saving ? 'Saving…' : editMode ? 'Save Changes' : 'Save'}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </>}
+    </Modal>
   )
 }

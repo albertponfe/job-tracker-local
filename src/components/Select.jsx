@@ -13,29 +13,44 @@ function flatten(options) {
     : optionOf(option))
 }
 
-export default function Select({ id, value, options, onChange, ariaLabel, disabled = false, variant = 'field', style }) {
+export default function Select({ id, value, options, onChange, ariaLabel, disabled = false, variant = 'field', style, optionStyle }) {
   const items = useMemo(() => flatten(options), [options])
   const selectedIndex = items.findIndex(item => item.value === value)
   const [open, setOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
   const [activeIndex, setActiveIndex] = useState(Math.max(0, selectedIndex))
   const [menuStyle, setMenuStyle] = useState(null)
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
+  const optionRefs = useRef([])
+  const closeTimer = useRef(null)
   const listboxId = useId()
 
   const positionMenu = () => {
     const rect = triggerRef.current?.getBoundingClientRect()
     if (!rect) return
-    const estimatedHeight = Math.min(280, items.length * 36 + 16)
+    const statusMenu = variant === 'status'
+    const estimatedHeight = statusMenu ? Math.min(280, items.length * 40 + 8) : Math.min(280, items.length * 36 + 16)
     const above = innerHeight - rect.bottom < estimatedHeight + 12 && rect.top > estimatedHeight
-    const width = Math.min(Math.max(rect.width, 180), innerWidth - 16)
+    const width = Math.min(Math.max(rect.width, statusMenu ? 196 : 180), innerWidth - 16)
     const left = Math.min(Math.max(8, rect.left), innerWidth - width - 8)
     setMenuStyle({
       left,
       top: above ? Math.max(8, rect.top - estimatedHeight - 6) : rect.bottom + 6,
       width,
       transformOrigin: above ? 'bottom center' : 'top center',
+      '--menu-offset': above ? '4px' : '-4px',
     })
+  }
+
+  const closeMenu = immediate => {
+    if (!open || closing) return
+    if (immediate || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setOpen(false)
+      return
+    }
+    setClosing(true)
+    closeTimer.current = setTimeout(() => { setOpen(false); setClosing(false) }, 120)
   }
 
   useLayoutEffect(() => {
@@ -47,7 +62,7 @@ export default function Select({ id, value, options, onChange, ariaLabel, disabl
   useEffect(() => {
     if (!open) return
     const closeOutside = event => {
-      if (!triggerRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setOpen(false)
+      if (!triggerRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) closeMenu()
     }
     addEventListener('resize', positionMenu)
     addEventListener('scroll', positionMenu, true)
@@ -57,13 +72,19 @@ export default function Select({ id, value, options, onChange, ariaLabel, disabl
       removeEventListener('scroll', positionMenu, true)
       document.removeEventListener('pointerdown', closeOutside)
     }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, closing]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
+
+  useEffect(() => {
+    if (open) optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, open])
 
   const choose = index => {
     const item = items[index]
     if (!item || item.disabled) return
     onChange(item.value)
-    setOpen(false)
+    closeMenu()
     triggerRef.current?.focus()
   }
 
@@ -93,9 +114,9 @@ export default function Select({ id, value, options, onChange, ariaLabel, disabl
       choose(activeIndex)
     } else if (event.key === 'Escape') {
       event.preventDefault()
-      setOpen(false)
+      closeMenu(true)
     } else if (event.key === 'Tab') {
-      setOpen(false)
+      closeMenu(true)
     } else if (event.key.length === 1) {
       const match = items.findIndex(item => item.label.toLowerCase().startsWith(event.key.toLowerCase()))
       if (match >= 0) setActiveIndex(match)
@@ -120,18 +141,19 @@ export default function Select({ id, value, options, onChange, ariaLabel, disabl
         aria-controls={open ? listboxId : undefined}
         aria-activedescendant={open ? `${listboxId}-${activeIndex}` : undefined}
         disabled={disabled}
-        onClick={() => setOpen(value => !value)}
+        onClick={() => open ? closeMenu() : setOpen(true)}
         onKeyDown={onKeyDown}
       >
         <span className="select-value">{selected?.label || value}</span>
-        <span className="select-chevron" aria-hidden="true">⌄</span>
+        <svg className="select-chevron" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m4 6 4 4 4-4" /></svg>
       </button>
 
       {open && menuStyle && createPortal(
         <div
           ref={menuRef}
           id={listboxId}
-          className="select-menu"
+          className={`select-menu${variant === 'status' ? ' select-menu--status' : ''}`}
+          data-closing={closing || undefined}
           role="listbox"
           aria-label={ariaLabel}
           style={menuStyle}
@@ -143,6 +165,7 @@ export default function Select({ id, value, options, onChange, ariaLabel, disabl
               <div key={`${item.group || ''}-${item.value}`} role="presentation">
                 {showGroup && <div className="select-group">{item.group}</div>}
                 <button
+                  ref={node => { optionRefs.current[index] = node }}
                   id={`${listboxId}-${index}`}
                   type="button"
                   role="option"
@@ -153,7 +176,7 @@ export default function Select({ id, value, options, onChange, ariaLabel, disabl
                   onMouseDown={event => event.preventDefault()}
                   onClick={() => choose(index)}
                 >
-                  <span>{item.label}</span>
+                  <span className={variant === 'status' ? 'select-option-badge' : ''} style={optionStyle?.(item.value)}>{item.label}</span>
                   <span className="select-check" aria-hidden="true">{item.value === value ? '✓' : ''}</span>
                 </button>
               </div>
