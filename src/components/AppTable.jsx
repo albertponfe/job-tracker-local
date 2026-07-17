@@ -1,16 +1,26 @@
 import Select from './Select'
+import { useScrollFades } from '../lib/useScrollFades'
 
 export const STATUS_STYLES = {
-  'To Apply': { bg: 'rgba(6,182,212,0.14)',   color: '#22d3ee' },
-  Applied:   { bg: 'rgba(99,102,241,0.14)',  color: '#818cf8' },
-  Interview: { bg: 'rgba(245,158,11,0.14)',  color: '#fbbf24' },
-  Offer:     { bg: 'rgba(16,185,129,0.14)',  color: '#34d399' },
-  Rejected:  { bg: 'rgba(239,68,68,0.14)',   color: '#f87171' },
-  Ghosted:   { bg: 'rgba(107,114,128,0.14)', color: '#9ca3af' },
-  Withdrawn: { bg: 'rgba(107,114,128,0.14)', color: '#9ca3af' },
+  'To Apply': { bg: 'rgba(6,182,212,0.14)', color: '#22d3ee', lightBg: 'rgba(8,127,140,0.1)', lightColor: '#087f8c' },
+  Applied: { bg: 'rgba(99,102,241,0.14)', color: '#818cf8', lightBg: 'rgba(79,70,229,0.09)', lightColor: '#4f46a8' },
+  Interview: { bg: 'rgba(245,158,11,0.14)', color: '#fbbf24', lightBg: 'rgba(180,112,0,0.1)', lightColor: '#9a5b00' },
+  Offer: { bg: 'rgba(16,185,129,0.14)', color: '#34d399', lightBg: 'rgba(17,126,87,0.1)', lightColor: '#117e57' },
+  Rejected: { bg: 'rgba(239,68,68,0.14)', color: '#f87171', lightBg: 'rgba(190,55,55,0.09)', lightColor: '#b43b3b' },
+  Ghosted: { bg: 'rgba(107,114,128,0.14)', color: '#9ca3af', lightBg: 'rgba(75,85,99,0.08)', lightColor: '#626772' },
+  Withdrawn: { bg: 'rgba(107,114,128,0.14)', color: '#9ca3af', lightBg: 'rgba(75,85,99,0.08)', lightColor: '#626772' },
 }
 
-export const DEFAULT_STATUS_STYLE = { bg: 'rgba(99,102,241,0.14)', color: '#818cf8' }
+export const DEFAULT_STATUS_STYLE = STATUS_STYLES.Applied
+
+function statusVariables(style) {
+  return {
+    '--select-tone': style.color,
+    '--select-tint': style.bg,
+    '--select-tone-light': style.lightColor,
+    '--select-tint-light': style.lightBg,
+  }
+}
 
 export function companyHue(name) {
   let h = 0
@@ -74,10 +84,10 @@ function StatusSelect({ value, options, onChange }) {
       onChange={onChange}
       ariaLabel="Application status"
       variant="status"
-      style={{ '--select-tone': style.color, '--select-tint': style.bg }}
+      style={statusVariables(style)}
       optionStyle={status => {
         const optionStyle = STATUS_STYLES[status] || DEFAULT_STATUS_STYLE
-        return { '--select-tone': optionStyle.color, '--select-tint': optionStyle.bg }
+        return statusVariables(optionStyle)
       }}
     />
   )
@@ -149,6 +159,7 @@ function Row({ app, tableFields, onStatusChange, onEdit, onArchive, onDelete, is
 }
 
 export default function AppTable({ fields, applications, archivedApps = [], archivedCount = 0, showArchived = false, onToggleArchived, filter, onStatusChange, onEdit, onArchive, onDelete, onAdd, onClearFilter }) {
+  const [tableRef, fades] = useScrollFades()
   const tableFields = fields.filter(f => f.enabled && f.table)
   const colCount = tableFields.length + 1
   const hasActive = applications.length > 0
@@ -171,23 +182,24 @@ export default function AppTable({ fields, applications, archivedApps = [], arch
   const rowProps = { tableFields, onStatusChange, onEdit, onArchive, onDelete }
 
   return (
-    <div className="table-wrap">
-      {filter && (
-        <div className="table-heading">
-          <div className="table-filter-summary">
-            <strong style={{ color: filterStyle.color }}>{filter}</strong>
-            <span>{applications.length} application{applications.length === 1 ? '' : 's'}</span>
+    <div className="table-shell" data-fade-left={fades.left || undefined} data-fade-right={fades.right || undefined}>
+      <div ref={tableRef} className="table-wrap">
+        {filter && (
+          <div className="table-heading" style={{ '--filter-tone': filterStyle.color, '--filter-tone-light': filterStyle.lightColor }}>
+            <div className="table-filter-summary">
+              <strong>{filter}</strong>
+              <span>{applications.length} application{applications.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="table-heading-actions">
+              <button className="filter-clear" onClick={onClearFilter}>Clear filter</button>
+            </div>
           </div>
-          <div className="table-heading-actions">
-            <button className="filter-clear" onClick={onClearFilter}>Clear filter</button>
-          </div>
-        </div>
-      )}
-      <table className="app-table">
+        )}
+        <table className="app-table">
         <thead>
           <tr>
             {tableFields.map(f => <th key={f.key} style={{ width: colWidth(f) }}>{f.label}</th>)}
-            <th style={{ width: '144px' }}>Actions</th>
+            <th style={{ width: '160px' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -210,7 +222,8 @@ export default function AppTable({ fields, applications, archivedApps = [], arch
             <Row key={app.id} app={app} isArchived {...rowProps} />
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   )
 }

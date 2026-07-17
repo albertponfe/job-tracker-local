@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { api } from './lib/api'
 import Header from './components/Header'
 import StatCards from './components/StatCards'
@@ -8,6 +8,10 @@ import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('queue-theme')
+    return ['light', 'dark'].includes(saved) ? saved : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+  })
   const [config, setConfig] = useState(null)
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
@@ -27,6 +31,12 @@ export default function App() {
   }, [])
 
   useEffect(() => () => clearTimeout(errorTimer.current), [])
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme
+    localStorage.setItem('queue-theme', theme)
+  }, [theme])
 
   // silent = refresh data without flashing the full-screen loader (keeps modals mounted)
   const load = useCallback(async (silent = false) => {
@@ -106,6 +116,8 @@ export default function App() {
       <Header
         onAdd={() => setShowForm(true)}
         onOpenSettings={setSettingsTab}
+        theme={theme}
+        onToggleTheme={() => setTheme(current => current === 'dark' ? 'light' : 'dark')}
       />
       <main className="main">
         {error && <div className="error-banner" role="alert">{error}</div>}
