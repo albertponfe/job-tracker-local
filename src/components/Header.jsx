@@ -26,7 +26,10 @@ export default function Header({ onAdd, onOpenSettings, theme, onToggleTheme }) 
           <span className={`theme-icon${theme === 'light' ? ' theme-icon--active' : ''}`} aria-hidden="true"><ThemeIcon name="sun" /></span>
           <span className={`theme-icon${theme === 'dark' ? ' theme-icon--active' : ''}`} aria-hidden="true"><ThemeIcon name="moon" /></span>
         </button>
-        <button className="btn-add" onClick={onAdd}><span className="btn-add-icon" aria-hidden="true">+</span><span className="btn-add-label">Add application</span></button>
+        <button className="btn-add" onClick={onAdd}>
+          <span className="btn-add-icon" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 3v14M3 10h14" /></svg></span>
+          <span className="btn-add-label">Add application</span>
+        </button>
       </div>
     </header>
   )

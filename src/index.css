@@ -156,7 +156,8 @@ a:hover { text-decoration: underline; }
 .theme-icon--active { opacity: 1; filter: blur(0); transform: scale(1); }
 .theme-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .btn-add { margin-left: var(--space-1); color: var(--primary-text); background: var(--primary); box-shadow: var(--button-shadow); }
-.btn-add-icon { margin-top: -1px; font-size: 1.25rem; font-weight: 500; line-height: 1; }
+.btn-add-icon { width: 16px; height: 16px; flex: 0 0 16px; display: grid; place-items: center; }
+.btn-add-icon svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .btn-add:hover { background: var(--primary-hover); }
 
 .main { flex: 1; width: 100%; max-width: 1280px; margin: 0 auto; padding: var(--space-5); }
