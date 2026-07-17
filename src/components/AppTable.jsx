@@ -41,9 +41,14 @@ function colWidth(field) {
   return COL_WIDTH[field.key] || '160px'
 }
 
-function sortValue(app, key) {
+function sortValue(app, key, fields) {
   const raw = app[key]
   if (raw == null || raw === '') return { empty: true, value: '' }
+  if (key === 'status') {
+    const order = fields.find(field => field.key === 'status')?.options || []
+    const index = order.indexOf(raw)
+    if (index >= 0) return { empty: false, value: index }
+  }
   if (key === 'date') {
     const time = Date.parse(raw)
     if (!Number.isNaN(time)) return { empty: false, value: time }
@@ -55,10 +60,10 @@ function sortValue(app, key) {
   return { empty: false, value: String(raw).toLocaleLowerCase() }
 }
 
-function sortApplications(apps, sort) {
+function sortApplications(apps, sort, fields) {
   if (!sort) return apps
   return apps
-    .map((app, index) => ({ app, index, ...sortValue(app, sort.key) }))
+    .map((app, index) => ({ app, index, ...sortValue(app, sort.key, fields) }))
     .sort((a, b) => {
       if (a.empty !== b.empty) return a.empty ? 1 : -1
       const result = typeof a.value === 'number' && typeof b.value === 'number'
@@ -194,8 +199,9 @@ export default function AppTable({ fields, applications, archivedApps = [], arch
   const colCount = tableFields.length + 1
   const hasActive = applications.length > 0
   const filterStyle = STATUS_STYLES[filter] || DEFAULT_STATUS_STYLE
-  const sortedApplications = sortApplications(applications, sort)
-  const sortedArchivedApps = sortApplications(archivedApps, sort)
+  const sortedApplications = sortApplications(applications, sort, fields)
+  const sortedArchivedApps = sortApplications(archivedApps, sort, fields)
+  const isSortable = field => !['location', 'employmentType', 'url'].includes(field.key)
 
   const toggleSort = key => setSort(current => {
     if (!current || current.key !== key) return { key, dir: 'asc' }
@@ -236,6 +242,7 @@ export default function AppTable({ fields, applications, archivedApps = [], arch
         <thead>
           <tr>
             {tableFields.map(f => {
+              if (!isSortable(f)) return <th key={f.key} style={{ width: colWidth(f) }}>{f.label}</th>
               const active = sort?.key === f.key
               return (
                 <th key={f.key} style={{ width: colWidth(f) }} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
