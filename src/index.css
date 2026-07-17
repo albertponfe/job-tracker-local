@@ -6,6 +6,8 @@
   --surface: #161617;
   --surface-raised: #1d1d1f;
   --input: #121214;
+  --input-hover: #18181a;
+  --input-focus: #202023;
   --line: rgba(255,255,255,0.075);
   --line-strong: rgba(255,255,255,0.13);
   --text: #f0f0f1;
@@ -63,6 +65,8 @@
   --surface: #fff;
   --surface-raised: #fff;
   --input: #f1f1ef;
+  --input-hover: #eaeae8;
+  --input-focus: #fff;
   --line: rgba(20,21,24,0.09);
   --line-strong: rgba(20,21,24,0.16);
   --text: #242426;
@@ -281,10 +285,10 @@ a:hover { text-decoration: underline; }
 .field { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .field--full { grid-column: 1 / -1; }
 label { color: var(--label); font-size: 0.76rem; font-weight: 560; }
-.input, .select-trigger--field { width: 100%; min-height: 42px; color: var(--text); background: var(--input); border: 0; border-radius: 9px; box-shadow: none; font-size: 0.86rem; transition: background-color var(--quick); }
+.input, .select-trigger--field { width: 100%; min-height: 42px; color: var(--text); background: var(--input); border: 0; border-radius: 9px; box-shadow: none; font-size: 0.86rem; transition: background-color var(--quick), box-shadow var(--quick); }
 .input { padding: var(--space-2) var(--space-3); }
-.input:hover, .select-trigger--field:hover { background: color-mix(in srgb, var(--input) 94%, var(--text)); }
-.input:focus, .select-trigger--field:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.input:hover, .select-trigger--field:hover { background: var(--input-hover); }
+.input:focus, .select-trigger--field:focus-visible { outline: 0; background: var(--input-focus); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .input::placeholder { color: var(--placeholder); }
 .textarea { min-height: 78px; resize: vertical; }
 .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: var(--space-2); padding-top: var(--space-2); }
