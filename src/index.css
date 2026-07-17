@@ -29,6 +29,7 @@
   --row-focus: #1c1d21;
   --table-head: rgba(255,255,255,0.025);
   --actions-head: #1a1a1c;
+  --actions-cell: #161617;
   --modal: #19191b;
   --label: #b8b8bd;
   --placeholder: #85858c;
@@ -88,6 +89,7 @@
   --row-focus: #f3f5f9;
   --table-head: rgba(20,21,24,0.025);
   --actions-head: #fafaf9;
+  --actions-cell: #fff;
   --modal: #fff;
   --label: #56575d;
   --placeholder: #8b8c92;
@@ -217,7 +219,7 @@ a:hover { text-decoration: underline; }
 }
 .table-shell[data-fade-right] .app-table th:last-child, .table-shell[data-fade-right] .app-table td:last-child { box-shadow: var(--sticky-shadow); }
 .app-table th:last-child { z-index: 2; background: var(--actions-head); text-align: right; }
-.app-table td:last-child { z-index: 1; background: var(--row-surface); transition: background-color var(--quick); }
+.app-table td:last-child { z-index: 1; background: var(--actions-cell); }
 .td-bold { font-weight: 600; letter-spacing: -0.012em; }
 .td-muted { color: var(--muted); }
 .cell-tabular { font-variant-numeric: tabular-nums; }
