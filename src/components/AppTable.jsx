@@ -56,7 +56,7 @@ function CompanyCell({ name, url }) {
   return (
     <div className="company-cell">
       <span className="company-avatar" style={{ '--avatar-bg': `hsl(${hue} 55% 20%)`, '--avatar-fg': `hsl(${hue} 90% 78%)` }}>
-        {favicon && <img src={favicon} alt="" loading="lazy" referrerPolicy="no-referrer" onError={event => { event.currentTarget.hidden = true }} />}
+        {favicon && <img src={favicon} alt="" referrerPolicy="no-referrer" onError={event => { event.currentTarget.hidden = true }} />}
         <span>{name.charAt(0).toUpperCase()}</span>
       </span>
       <span className="td-bold company-name">{name}</span>
@@ -104,9 +104,10 @@ function Cell({ field, app, onStatusChange }) {
       : <span className="td-muted">—</span>
   }
 
-  if (field.key === 'date') return <span className="td-muted cell-nowrap">{val || '—'}</span>
+  if (field.key === 'date') return <span className="td-muted cell-nowrap cell-tabular">{val || '—'}</span>
 
   if (!val) return <span className="td-muted">—</span>
+  if (field.key === 'salary') return <span className="td-muted cell-clamp cell-tabular" title={val}>{val}</span>
   return <span className={`cell-clamp ${field.type === 'text' && field.key === 'position' ? '' : 'td-muted'}`} title={val}>{val}</span>
 }
 

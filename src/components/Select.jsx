@@ -30,7 +30,7 @@ export default function Select({ id, value, options, onChange, ariaLabel, disabl
     const rect = triggerRef.current?.getBoundingClientRect()
     if (!rect) return
     const statusMenu = variant === 'status'
-    const estimatedHeight = statusMenu ? Math.min(280, items.length * 40 + 8) : Math.min(280, items.length * 36 + 16)
+    const estimatedHeight = statusMenu ? Math.min(288, items.length * 40 + 8) : Math.min(280, items.length * 40 + 16)
     const above = innerHeight - rect.bottom < estimatedHeight + 12 && rect.top > estimatedHeight
     const width = Math.min(Math.max(rect.width, statusMenu ? 196 : 180), innerWidth - 16)
     const left = Math.min(Math.max(8, rect.left), innerWidth - width - 8)
