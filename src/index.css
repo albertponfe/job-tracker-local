@@ -154,7 +154,8 @@ a:hover { text-decoration: underline; }
 }
 .btn-tool, .btn-theme { color: var(--muted); background: var(--soft); }
 .btn-tool:hover, .btn-theme:hover { color: var(--text); background: var(--hover); }
-.btn-tool-icon { font-size: 1rem; line-height: 1; }
+.btn-tool-icon { width: 16px; height: 16px; flex: 0 0 16px; display: grid; place-items: center; }
+.btn-tool-icon svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .btn-theme { position: relative; width: 40px; flex: 0 0 40px; padding: 0; overflow: hidden; }
 .theme-icon { position: absolute; inset: 0; display: grid; place-content: center; opacity: 0; filter: blur(4px); transform: scale(0.25); transition: opacity var(--motion) var(--ease-out), filter var(--motion) var(--ease-out), transform var(--motion) var(--ease-out); }
 .theme-icon--active { opacity: 1; filter: blur(0); transform: scale(1); }

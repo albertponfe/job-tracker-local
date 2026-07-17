@@ -14,10 +14,10 @@ export default function Header({ onAdd, onOpenSettings, theme, onToggleTheme }) 
       </div>
       <div className="header-right">
         <button className="btn-tool" onClick={() => onOpenSettings('fields')} title="Choose which fields show in the table">
-          Fields
+          <span className="btn-tool-icon" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M3 3h5v5H3zM12 3h5v5h-5zM3 12h5v5H3zM12 12h5v5h-5z" /></svg></span> Fields
         </button>
         <button className="btn-tool" onClick={() => onOpenSettings('data')} title="Import from a Google Sheet · Export">
-          Import
+          <span className="btn-tool-icon" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 3v10m0-10 4 4m-4-4L6 7M4 13v4h12v-4" /></svg></span> Import
         </button>
         <button className="btn-tool" onClick={() => onOpenSettings('ai')} title="Set up AI auto-fill for the Extract button">
           <span className="btn-tool-icon" aria-hidden="true">✦</span> AI
