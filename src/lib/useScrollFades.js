@@ -9,7 +9,7 @@ export function useScrollFades() {
     if (!el) return
     const update = () => {
       const max = el.scrollWidth - el.clientWidth
-      const next = { left: el.scrollLeft > 1, right: max - el.scrollLeft > 1 }
+      const next = { left: el.scrollLeft > 12, right: max - el.scrollLeft > 12 }
       setFades(current => current.left === next.left && current.right === next.right ? current : next)
     }
     const observer = new ResizeObserver(update)
