@@ -197,6 +197,9 @@ a:hover { text-decoration: underline; }
 .filter-clear:hover { color: var(--text); background: var(--hover); }
 .app-table { width: max-content; min-width: 100%; border-collapse: collapse; table-layout: auto; font-size: 0.87rem; }
 .app-table thead { background: var(--table-head); }
+.table-sort { width: 100%; display: inline-flex; align-items: center; gap: 6px; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; }
+.table-sort:hover { color: var(--text); }
+.table-sort-indicator { color: var(--muted); font-size: 0.82rem; line-height: 1; }
 .app-table th { height: 44px; padding: 0 var(--space-4); color: var(--subtle); border-bottom: 1px solid var(--line); font-size: 0.69rem; font-weight: 620; letter-spacing: 0.055em; line-height: 1.3; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .app-table td { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); vertical-align: middle; overflow-wrap: break-word; word-break: break-word; }
 .app-table tbody tr { --row-surface: var(--surface); background: var(--row-surface); transition: background-color var(--quick), box-shadow var(--quick); }
@@ -281,7 +284,7 @@ label { color: var(--label); font-size: 0.76rem; font-weight: 560; }
 .input, .select-trigger--field { width: 100%; min-height: 42px; color: var(--text); background: var(--input); border: 0; border-radius: 9px; box-shadow: none; font-size: 0.86rem; transition: background-color var(--quick); }
 .input { padding: var(--space-2) var(--space-3); }
 .input:hover, .select-trigger--field:hover { background: color-mix(in srgb, var(--input) 94%, var(--text)); }
-.input:focus, .select-trigger--field:focus-visible { outline: 0; box-shadow: none; }
+.input:focus, .select-trigger--field:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--line-strong); }
 .input::placeholder { color: var(--placeholder); }
 .textarea { min-height: 78px; resize: vertical; }
 .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: var(--space-2); padding-top: var(--space-2); }

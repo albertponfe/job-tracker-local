@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Select from './Select'
 import { useScrollFades } from '../lib/useScrollFades'
 
@@ -38,6 +39,34 @@ const COL_WIDTH = {
 function colWidth(field) {
   if (field.type === 'url') return '104px'
   return COL_WIDTH[field.key] || '160px'
+}
+
+function sortValue(app, key) {
+  const raw = app[key]
+  if (raw == null || raw === '') return { empty: true, value: '' }
+  if (key === 'date') {
+    const time = Date.parse(raw)
+    if (!Number.isNaN(time)) return { empty: false, value: time }
+  }
+  if (key === 'salary') {
+    const firstNumber = String(raw).match(/[0-9][0-9,.]*/)?.[0]
+    if (firstNumber) return { empty: false, value: Number(firstNumber.replace(/,/g, '')) }
+  }
+  return { empty: false, value: String(raw).toLocaleLowerCase() }
+}
+
+function sortApplications(apps, sort) {
+  if (!sort) return apps
+  return apps
+    .map((app, index) => ({ app, index, ...sortValue(app, sort.key) }))
+    .sort((a, b) => {
+      if (a.empty !== b.empty) return a.empty ? 1 : -1
+      const result = typeof a.value === 'number' && typeof b.value === 'number'
+        ? a.value - b.value
+        : String(a.value).localeCompare(String(b.value), undefined, { numeric: true, sensitivity: 'base' })
+      return result === 0 ? a.index - b.index : (sort.dir === 'asc' ? result : -result)
+    })
+    .map(({ app }) => app)
 }
 
 function Icon({ name, className = 'table-icon' }) {
@@ -160,10 +189,18 @@ function Row({ app, tableFields, onStatusChange, onEdit, onArchive, onDelete, is
 
 export default function AppTable({ fields, applications, archivedApps = [], archivedCount = 0, showArchived = false, onToggleArchived, filter, onStatusChange, onEdit, onArchive, onDelete, onAdd, onClearFilter }) {
   const [tableRef, fades] = useScrollFades()
+  const [sort, setSort] = useState(null)
   const tableFields = fields.filter(f => f.enabled && f.table)
   const colCount = tableFields.length + 1
   const hasActive = applications.length > 0
   const filterStyle = STATUS_STYLES[filter] || DEFAULT_STATUS_STYLE
+  const sortedApplications = sortApplications(applications, sort)
+  const sortedArchivedApps = sortApplications(archivedApps, sort)
+
+  const toggleSort = key => setSort(current => {
+    if (!current || current.key !== key) return { key, dir: 'asc' }
+    return current.dir === 'asc' ? { key, dir: 'desc' } : null
+  })
 
   if (!hasActive && archivedCount === 0) {
     const emptyTitle = filter === 'To Apply' ? 'No applications to apply' : filter ? `No ${filter.toLowerCase()} applications` : 'No applications yet'
@@ -198,12 +235,21 @@ export default function AppTable({ fields, applications, archivedApps = [], arch
         <table className="app-table">
         <thead>
           <tr>
-            {tableFields.map(f => <th key={f.key} style={{ width: colWidth(f) }}>{f.label}</th>)}
+            {tableFields.map(f => {
+              const active = sort?.key === f.key
+              return (
+                <th key={f.key} style={{ width: colWidth(f) }} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" className="table-sort" onClick={() => toggleSort(f.key)} aria-label={`Sort by ${f.label}`}>
+                    <span>{f.label}</span><span className="table-sort-indicator" aria-hidden="true">{active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                  </button>
+                </th>
+              )
+            })}
             <th style={{ width: '160px' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {applications.map(app => (
+          {sortedApplications.map(app => (
             <Row key={app.id} app={app} {...rowProps} />
           ))}
 
@@ -218,7 +264,7 @@ export default function AppTable({ fields, applications, archivedApps = [], arch
             </tr>
           )}
 
-          {archivedApps.map(app => (
+          {sortedArchivedApps.map(app => (
             <Row key={app.id} app={app} isArchived {...rowProps} />
           ))}
         </tbody>
