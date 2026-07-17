@@ -5,8 +5,8 @@
 //  JSON file (data/applications.json), and proxies the optional AI extraction
 //  and one-time Google Sheet import (so the browser doesn't hit CORS walls).
 //
-//  There is NO connection to any external service unless YOU configure one
-//  (an AI provider in Settings, or importing your own Google Sheet).
+//  External requests only happen for job extraction, job-site favicons,
+//  Google Sheet imports, or a provider configured in Settings.
 // ─────────────────────────────────────────────────────────────────────────
 
 import express from 'express'
@@ -77,6 +77,13 @@ async function ensureData() {
 async function readApps() {
   const apps = JSON.parse(await readFile(APPS_FILE, 'utf8'))
   if (!Array.isArray(apps)) throw new Error('Applications data must be a JSON array.')
+  const ids = new Set()
+  for (const app of apps) {
+    if (!app || typeof app !== 'object' || Array.isArray(app)) throw new Error('Every application must be a JSON object.')
+    if (typeof app.id !== 'string' || !app.id.trim()) throw new Error('Every application must have an ID.')
+    if (ids.has(app.id)) throw new Error(`Duplicate application ID: ${app.id}`)
+    ids.add(app.id)
+  }
   return apps
 }
 async function writeApps(apps) {
@@ -118,17 +125,18 @@ app.get('/api/applications', asyncRoute(async (_req, res) => {
 }))
 
 app.post('/api/applications', asyncRoute(async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Application data must be an object.' })
+  if (typeof req.body.company !== 'string' || !req.body.company.trim()) return res.status(400).json({ error: 'Company is required.' })
   const record = await serializeMutation(async () => {
     const apps = await readApps()
     const now = new Date()
     const next = {
+      ...req.body,
       id: randomUUID(),
       date: req.body.date || now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
       createdAt: now.toISOString(),
       archived: false,
-      ...req.body,
     }
-    next.id = next.id || randomUUID()
     apps.push(next)
     await writeApps(apps)
     return next
@@ -137,6 +145,8 @@ app.post('/api/applications', asyncRoute(async (req, res) => {
 }))
 
 app.patch('/api/applications/:id', asyncRoute(async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Application data must be an object.' })
+  if ('company' in req.body && (typeof req.body.company !== 'string' || !req.body.company.trim())) return res.status(400).json({ error: 'Company is required.' })
   const record = await serializeMutation(async () => {
     const apps = await readApps()
     const idx = apps.findIndex(a => a.id === req.params.id)
@@ -166,6 +176,9 @@ app.get('/api/config', asyncRoute(async (_req, res) => {
 }))
 
 app.post('/api/config', asyncRoute(async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Config data must be an object.' })
+  if (req.body.fields != null && !Array.isArray(req.body.fields)) return res.status(400).json({ error: 'Config fields must be an array.' })
+  if (req.body.ai != null && (typeof req.body.ai !== 'object' || Array.isArray(req.body.ai))) return res.status(400).json({ error: 'Config AI settings must be an object.' })
   const next = await serializeMutation(async () => {
     const current = await readConfig()
     const updated = {
@@ -224,7 +237,7 @@ async function callModel(ai, prompt) {
   // OpenAI. ('openai-compatible' is the legacy value kept for older saved configs.)
   // The base URL is fixed to OpenAI's API — this is OpenAI-only by design.
   if (ai.provider === 'openai' || ai.provider === 'openai-compatible') {
-    if (!ai.apiKey) throw new Error('An OpenAI API key is required. Add it in Settings → AI Extraction.')
+    if (!ai.apiKey) throw new Error('An OpenAI API key is required. Click AI to add it.')
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -444,7 +457,7 @@ app.post('/api/extract', asyncRoute(async (req, res) => {
 
   const { ai } = await readConfig()
   if (!ai.provider || ai.provider === 'none') {
-    return res.status(400).json({ error: 'AI is not set up. Open Settings → AI to enable extraction, or fill the fields in manually.' })
+    return res.status(400).json({ error: 'AI is not set up. Click AI to enable extraction, or fill the fields in manually.' })
   }
 
   // 1) Fetch and clean the job page
@@ -641,6 +654,7 @@ app.post('/api/import/gsheet', async (req, res) => {
     const { headers, rows } = await fetchSheetCsv(url)
     const result = await serializeMutation(async () => {
       const cfg = await readConfig()
+      const previousConfig = structuredClone(cfg)
       const map = Array.isArray(mapping) ? mapping : headers.map(h => guessField(h, cfg.fields) || '__ignore__')
       const targets = []
       let fieldsChanged = false
@@ -658,14 +672,30 @@ app.post('/api/import/gsheet', async (req, res) => {
         } else if (!target || target === '__ignore__') {
           targets[i] = null
         } else {
-          targets[i] = cfg.fields.some(f => f.key === target) ? target : null
+          if (!cfg.fields.some(f => f.key === target)) {
+            throw {
+              status: 422,
+              message: `“${String(h || `Column ${i + 1}`).trim()}” is mapped to a field that no longer exists. Preview the sheet again.`,
+            }
+          }
+          targets[i] = target
         }
       })
+
+      const assigned = targets.filter(Boolean)
+      const duplicate = assigned.find((key, index) => assigned.indexOf(key) !== index)
+      if (duplicate) {
+        const label = cfg.fields.find(field => field.key === duplicate)?.label || duplicate
+        throw { status: 422, message: `More than one column is mapped to “${label}”. Choose a different field or ignore one column.` }
+      }
+      if (!targets.includes('company')) {
+        throw { status: 422, message: 'Map one column to Company before importing.' }
+      }
 
       const statusOptions = cfg.fields.find(f => f.key === 'status')?.options || []
       const defaultStatus = statusOptions.includes('Applied') ? 'Applied' : (statusOptions[0] || 'Applied')
       const now = new Date()
-      const imported = rows.map(row => {
+      const imported = rows.map((row, rowIndex) => {
         const record = { id: randomUUID(), createdAt: now.toISOString(), archived: false }
         let any = false
         targets.forEach((key, i) => {
@@ -674,6 +704,9 @@ app.post('/api/import/gsheet', async (req, res) => {
             any = true
           }
         })
+        if (any && !record.company?.trim()) {
+          throw { status: 422, message: `Row ${rowIndex + 2} has no company. Add one in the sheet or exclude that row before importing.` }
+        }
         if (!record.date) record.date = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
         if (cfg.fields.some(f => f.key === 'status') && !record.status) record.status = defaultStatus
         return any ? record : null
@@ -682,8 +715,13 @@ app.post('/api/import/gsheet', async (req, res) => {
       if (imported.length === 0) throw { status: 422, message: 'No rows to import — check your column mapping.' }
       const apps = await readApps()
       if (fieldsChanged) await writeConfig(cfg)
-      await writeApps([...apps, ...imported])
-      return { imported: imported.length, fieldsAdded: fieldsChanged }
+      try {
+        await writeApps([...apps, ...imported])
+      } catch (error) {
+        if (fieldsChanged) await writeConfig(previousConfig)
+        throw error
+      }
+      return { imported: imported.length, fieldsAdded: fieldsChanged, config: cfg }
     })
     res.json(result)
   } catch (e) {
@@ -713,6 +751,8 @@ app.post('/api/ai/ollama-pull', async (req, res) => {
   const base = String(req.body?.baseUrl || 'http://localhost:11434').replace(/\/$/, '')
   const model = String(req.body?.model || 'llama3.2').trim()
   try {
+    const status = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3000) })
+    if (!status.ok) throw new Error('Ollama is not responding.')
     // fire-and-forget: don't await the (large) download
     fetch(`${base}/api/pull`, {
       method: 'POST',
@@ -721,7 +761,7 @@ app.post('/api/ai/ollama-pull', async (req, res) => {
     }).catch(() => {})
     res.json({ started: true, model })
   } catch (e) {
-    res.status(500).json({ error: String(e.message || e) })
+    res.status(502).json({ error: `Could not start the download: ${String(e.message || e)}` })
   }
 })
 
@@ -752,7 +792,7 @@ function openBrowser(url) {
 }
 
 await ensureData()
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`
   console.log(`\n  🎯  Queue is running at  ${url}`)
   console.log(`      Your data is stored locally in  data/applications.json`)
