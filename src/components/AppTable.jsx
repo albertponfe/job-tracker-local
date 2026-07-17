@@ -99,8 +99,8 @@ function CompanyCell({ name, url }) {
   const favicon = faviconFor(url)
   return (
     <div className="company-cell">
-      <span className="company-avatar" style={{ '--avatar-bg': `hsl(${hue} 55% 20%)`, '--avatar-fg': `hsl(${hue} 90% 78%)` }}>
-        {favicon && <img src={favicon} alt="" referrerPolicy="no-referrer" onError={event => { event.currentTarget.hidden = true }} />}
+      <span className="company-avatar" style={{ '--avatar-fg': `hsl(${hue} 58% 38%)` }}>
+        {favicon && <img src={favicon} alt="" referrerPolicy="no-referrer" onLoad={event => { if (Math.min(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight) < 48) event.currentTarget.hidden = true }} onError={event => { event.currentTarget.hidden = true }} />}
         <span>{name.charAt(0).toUpperCase()}</span>
       </span>
       <span className="td-bold company-name">{name}</span>
