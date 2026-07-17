@@ -23,6 +23,7 @@ export default function App() {
   const [filter, setFilter] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
   const errorTimer = useRef(null)
+  const themeFrame = useRef(null)
 
   const flashError = useCallback((msg) => {
     setError(msg)
@@ -30,13 +31,26 @@ export default function App() {
     errorTimer.current = setTimeout(() => setError(null), 4500)
   }, [])
 
-  useEffect(() => () => clearTimeout(errorTimer.current), [])
+  useEffect(() => () => {
+    clearTimeout(errorTimer.current)
+    cancelAnimationFrame(themeFrame.current)
+  }, [])
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme
     document.documentElement.style.colorScheme = theme
     localStorage.setItem('queue-theme', theme)
   }, [theme])
+
+  const toggleTheme = useCallback(() => {
+    const root = document.documentElement
+    root.dataset.themeChanging = ''
+    setTheme(current => current === 'dark' ? 'light' : 'dark')
+    cancelAnimationFrame(themeFrame.current)
+    themeFrame.current = requestAnimationFrame(() => {
+      themeFrame.current = requestAnimationFrame(() => root.removeAttribute('data-theme-changing'))
+    })
+  }, [])
 
   // silent = refresh data without flashing the full-screen loader (keeps modals mounted)
   const load = useCallback(async (silent = false) => {
@@ -117,7 +131,7 @@ export default function App() {
         onAdd={() => setShowForm(true)}
         onOpenSettings={setSettingsTab}
         theme={theme}
-        onToggleTheme={() => setTheme(current => current === 'dark' ? 'light' : 'dark')}
+        onToggleTheme={toggleTheme}
       />
       <main className="main">
         {error && <div className="error-banner" role="alert">{error}</div>}
