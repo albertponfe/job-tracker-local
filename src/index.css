@@ -39,8 +39,8 @@
   --tabs: #111113;
   --tab-active: #28282b;
   --image-outline: rgba(255,255,255,0.1);
-  --logo-tile: #f4f4f5;
-  --logo-outline: rgba(0,0,0,0.12);
+  --logo-tile: #242426;
+  --logo-outline: rgba(255,255,255,0.1);
   --scroll-thumb: rgba(255,255,255,0.09);
   --scroll-thumb-hover: rgba(255,255,255,0.15);
   --sticky-shadow: -1px 0 0 rgba(255,255,255,0.045), -10px 0 18px -14px rgba(0,0,0,0.72);
@@ -231,8 +231,9 @@ a:hover { text-decoration: underline; }
 .cell-clamp { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .company-cell { min-width: 0; display: flex; align-items: center; gap: var(--space-3); }
 .company-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.company-avatar { position: relative; width: 32px; height: 32px; flex: 0 0 32px; display: grid; place-content: center; overflow: hidden; background: var(--logo-tile); border-radius: 9px; box-shadow: inset 0 0 0 1px var(--logo-outline); color: var(--avatar-fg); font-size: 0.78rem; font-weight: 700; }
-.company-avatar img { position: absolute; inset: 1px; width: 30px; height: 30px; background: var(--logo-tile); border-radius: 8px; object-fit: contain; object-position: center; }
+.company-avatar { position: relative; width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-content: center; overflow: hidden; background: var(--logo-tile); border-radius: 50%; box-shadow: inset 0 0 0 1px var(--logo-outline); color: hsl(var(--avatar-hue) 65% 72%); font-size: 0.72rem; font-weight: 700; }
+:root[data-theme='light'] .company-avatar { color: hsl(var(--avatar-hue) 58% 38%); }
+.company-avatar img { position: absolute; inset: 1px; width: 26px; height: 26px; background: var(--logo-tile); border-radius: 50%; object-fit: contain; object-position: center; }
 .contact-email { color: var(--accent2); font-size: 0.8rem; overflow-wrap: anywhere; }
 
 .table-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); }
