@@ -5,12 +5,12 @@
 //  JSON file (data/applications.json), and proxies the optional AI extraction
 //  and one-time Google Sheet import (so the browser doesn't hit CORS walls).
 //
-//  There is NO connection to any external service unless YOU configure one
-//  (an AI provider in Settings, or importing your own Google Sheet).
+//  External requests only happen for job extraction, job-site favicons,
+//  Google Sheet imports, or a provider configured in Settings.
 // ─────────────────────────────────────────────────────────────────────────
 
 import express from 'express'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -50,86 +50,148 @@ const DEFAULT_CONFIG = {
 }
 
 // ── Tiny JSON file helpers ──
+async function writeJsonAtomic(file, value) {
+  const temp = `${file}.tmp`
+  await writeFile(temp, JSON.stringify(value, null, 2))
+  await rename(temp, file)
+}
+
+function mergeFields(savedFields) {
+  const saved = Array.isArray(savedFields) ? savedFields : []
+  if (saved.some(field => !field || typeof field !== 'object' || Array.isArray(field) || typeof field.key !== 'string')) {
+    throw new Error('Config fields must be objects with string keys.')
+  }
+  const defaults = new Map(DEFAULT_CONFIG.fields.map(field => [field.key, field]))
+  const savedKeys = new Set(saved.map(field => field.key))
+  return [
+    ...saved.map(field => ({ ...(defaults.get(field.key) || {}), ...field })),
+    ...DEFAULT_CONFIG.fields.filter(field => !savedKeys.has(field.key)).map(field => ({ ...field })),
+  ]
+}
+
 async function ensureData() {
   if (!existsSync(DATA_DIR)) await mkdir(DATA_DIR, { recursive: true })
-  if (!existsSync(APPS_FILE)) await writeFile(APPS_FILE, '[]')
-  if (!existsSync(CONFIG_FILE)) await writeFile(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2))
+  if (!existsSync(APPS_FILE)) await writeJsonAtomic(APPS_FILE, [])
+  if (!existsSync(CONFIG_FILE)) await writeJsonAtomic(CONFIG_FILE, DEFAULT_CONFIG)
 }
 async function readApps() {
-  try { return JSON.parse(await readFile(APPS_FILE, 'utf8')) } catch { return [] }
+  const apps = JSON.parse(await readFile(APPS_FILE, 'utf8'))
+  if (!Array.isArray(apps)) throw new Error('Applications data must be a JSON array.')
+  const ids = new Set()
+  for (const app of apps) {
+    if (!app || typeof app !== 'object' || Array.isArray(app)) throw new Error('Every application must be a JSON object.')
+    if (typeof app.id !== 'string' || !app.id.trim()) throw new Error('Every application must have an ID.')
+    if (ids.has(app.id)) throw new Error(`Duplicate application ID: ${app.id}`)
+    ids.add(app.id)
+  }
+  return apps
 }
 async function writeApps(apps) {
-  await writeFile(APPS_FILE, JSON.stringify(apps, null, 2))
+  await writeJsonAtomic(APPS_FILE, apps)
 }
 async function readConfig() {
-  try {
-    const cfg = JSON.parse(await readFile(CONFIG_FILE, 'utf8'))
-    // merge in any newly-added default fields so upgrades don't lose keys
-    return { ...DEFAULT_CONFIG, ...cfg, ai: { ...DEFAULT_CONFIG.ai, ...(cfg.ai || {}) } }
-  } catch { return DEFAULT_CONFIG }
+  const cfg = JSON.parse(await readFile(CONFIG_FILE, 'utf8'))
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) throw new Error('Config data must be a JSON object.')
+  if (cfg.fields != null && !Array.isArray(cfg.fields)) throw new Error('Config fields must be a JSON array.')
+  if (cfg.ai != null && (typeof cfg.ai !== 'object' || Array.isArray(cfg.ai))) throw new Error('Config AI settings must be a JSON object.')
+  return {
+    ...DEFAULT_CONFIG,
+    ...cfg,
+    fields: mergeFields(cfg.fields),
+    ai: { ...DEFAULT_CONFIG.ai, ...(cfg.ai || {}) },
+  }
 }
 async function writeConfig(cfg) {
-  await writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2))
+  await writeJsonAtomic(CONFIG_FILE, cfg)
 }
+
+let mutationTail = Promise.resolve()
+function serializeMutation(work) {
+  const result = mutationTail.then(work)
+  mutationTail = result.catch(() => {})
+  return result
+}
+
+const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next)
 
 const app = express()
 app.use(express.json({ limit: '2mb' }))
 
 // ─────────────────────────── Applications CRUD ───────────────────────────
 
-app.get('/api/applications', async (_req, res) => {
+app.get('/api/applications', asyncRoute(async (_req, res) => {
   const apps = await readApps()
   res.json({ applications: apps })
-})
+}))
 
-app.post('/api/applications', async (req, res) => {
-  const apps = await readApps()
-  const now = new Date()
-  const record = {
-    id: randomUUID(),
-    date: req.body.date || now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-    createdAt: now.toISOString(),
-    archived: false,
-    ...req.body,
-  }
-  record.id = record.id || randomUUID() // never let the client blank the id
-  apps.push(record)
-  await writeApps(apps)
+app.post('/api/applications', asyncRoute(async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Application data must be an object.' })
+  if (typeof req.body.company !== 'string' || !req.body.company.trim()) return res.status(400).json({ error: 'Company is required.' })
+  const record = await serializeMutation(async () => {
+    const apps = await readApps()
+    const now = new Date()
+    const next = {
+      ...req.body,
+      id: randomUUID(),
+      date: req.body.date || now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      createdAt: now.toISOString(),
+      archived: false,
+    }
+    apps.push(next)
+    await writeApps(apps)
+    return next
+  })
   res.json({ application: record })
-})
+}))
 
-app.patch('/api/applications/:id', async (req, res) => {
-  const apps = await readApps()
-  const idx = apps.findIndex(a => a.id === req.params.id)
-  if (idx === -1) return res.status(404).json({ error: 'Not found' })
-  apps[idx] = { ...apps[idx], ...req.body, id: apps[idx].id } // id is immutable
-  await writeApps(apps)
-  res.json({ application: apps[idx] })
-})
+app.patch('/api/applications/:id', asyncRoute(async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Application data must be an object.' })
+  if ('company' in req.body && (typeof req.body.company !== 'string' || !req.body.company.trim())) return res.status(400).json({ error: 'Company is required.' })
+  const record = await serializeMutation(async () => {
+    const apps = await readApps()
+    const idx = apps.findIndex(a => a.id === req.params.id)
+    if (idx === -1) return null
+    apps[idx] = { ...apps[idx], ...req.body, id: apps[idx].id }
+    await writeApps(apps)
+    return apps[idx]
+  })
+  if (!record) return res.status(404).json({ error: 'Not found' })
+  res.json({ application: record })
+}))
 
-app.delete('/api/applications/:id', async (req, res) => {
-  const apps = await readApps()
-  const next = apps.filter(a => a.id !== req.params.id)
-  await writeApps(next)
-  res.json({ ok: true, removed: apps.length - next.length })
-})
+app.delete('/api/applications/:id', asyncRoute(async (req, res) => {
+  const removed = await serializeMutation(async () => {
+    const apps = await readApps()
+    const next = apps.filter(a => a.id !== req.params.id)
+    await writeApps(next)
+    return apps.length - next.length
+  })
+  res.json({ ok: true, removed })
+}))
 
 // ─────────────────────────────── Config ──────────────────────────────────
 
-app.get('/api/config', async (_req, res) => {
+app.get('/api/config', asyncRoute(async (_req, res) => {
   res.json(await readConfig())
-})
+}))
 
-app.post('/api/config', async (req, res) => {
-  const current = await readConfig()
-  const next = {
-    ...current,
-    ...req.body,
-    ai: { ...current.ai, ...(req.body.ai || {}) },
-  }
-  await writeConfig(next)
+app.post('/api/config', asyncRoute(async (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Config data must be an object.' })
+  if (req.body.fields != null && !Array.isArray(req.body.fields)) return res.status(400).json({ error: 'Config fields must be an array.' })
+  if (req.body.ai != null && (typeof req.body.ai !== 'object' || Array.isArray(req.body.ai))) return res.status(400).json({ error: 'Config AI settings must be an object.' })
+  const next = await serializeMutation(async () => {
+    const current = await readConfig()
+    const updated = {
+      ...current,
+      ...req.body,
+      fields: mergeFields(req.body.fields || current.fields),
+      ai: { ...current.ai, ...(req.body.ai || {}) },
+    }
+    await writeConfig(updated)
+    return updated
+  })
   res.json(next)
-})
+}))
 
 // ───────────────────────── AI extraction (optional) ──────────────────────
 
@@ -175,7 +237,7 @@ async function callModel(ai, prompt) {
   // OpenAI. ('openai-compatible' is the legacy value kept for older saved configs.)
   // The base URL is fixed to OpenAI's API — this is OpenAI-only by design.
   if (ai.provider === 'openai' || ai.provider === 'openai-compatible') {
-    if (!ai.apiKey) throw new Error('An OpenAI API key is required. Add it in Settings → AI Extraction.')
+    if (!ai.apiKey) throw new Error('An OpenAI API key is required. Click AI to add it.')
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -379,7 +441,7 @@ async function tryWorkday(url) {
   } catch { return null }
 }
 
-app.post('/api/extract', async (req, res) => {
+app.post('/api/extract', asyncRoute(async (req, res) => {
   const { url } = req.body || {}
   if (!url) return res.status(400).json({ error: 'A job URL is required.' })
 
@@ -395,7 +457,7 @@ app.post('/api/extract', async (req, res) => {
 
   const { ai } = await readConfig()
   if (!ai.provider || ai.provider === 'none') {
-    return res.status(400).json({ error: 'AI is not set up. Open Settings → AI to enable extraction, or fill the fields in manually.' })
+    return res.status(400).json({ error: 'AI is not set up. Click AI to enable extraction, or fill the fields in manually.' })
   }
 
   // 1) Fetch and clean the job page
@@ -465,7 +527,7 @@ ${pageText}`
   } catch (e) {
     res.status(500).json({ error: 'Extraction failed.', detail: String(e.message || e) })
   }
-})
+}))
 
 // ───────────────── One-time import from a public Google Sheet ─────────────
 
@@ -590,50 +652,78 @@ app.post('/api/import/gsheet', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'Paste your Google Sheet link.' })
   try {
     const { headers, rows } = await fetchSheetCsv(url)
-    const cfg = await readConfig()
-    const map = Array.isArray(mapping) ? mapping : headers.map(h => guessField(h, cfg.fields) || '__ignore__')
+    const result = await serializeMutation(async () => {
+      const cfg = await readConfig()
+      const previousConfig = structuredClone(cfg)
+      const map = Array.isArray(mapping) ? mapping : headers.map(h => guessField(h, cfg.fields) || '__ignore__')
+      const targets = []
+      let fieldsChanged = false
 
-    // Resolve each column to a stored field key (creating custom fields for __new__)
-    const targets = []
-    let fieldsChanged = false
-    headers.forEach((h, i) => {
-      const t = map[i]
-      if (t === '__new__') {
-        const label = String(h || '').trim() || `Field ${i + 1}`
-        const reserved = ['id', 'createdat', 'archived'] // system props on every record
-        let key = slugKey(label) || `field_${i}`
-        if (reserved.includes(key) || cfg.fields.some(f => f.key === key)) key = `${key}_${i}`
-        cfg.fields.push({ key, label, type: 'text', enabled: true, table: true, custom: true })
-        fieldsChanged = true
-        targets[i] = key
-      } else if (!t || t === '__ignore__') {
-        targets[i] = null
-      } else {
-        targets[i] = cfg.fields.some(f => f.key === t) ? t : null
-      }
-    })
-
-    const statusField = cfg.fields.find(f => f.key === 'status')
-    const defaultStatus = statusField?.options?.[0] || 'Applied'
-    const now = new Date()
-
-    const imported = rows.map(r => {
-      const rec = { id: randomUUID(), createdAt: now.toISOString(), archived: false }
-      let any = false
-      targets.forEach((key, i) => {
-        if (key && r[i] != null && String(r[i]).trim() !== '') { rec[key] = String(r[i]).trim(); any = true }
+      headers.forEach((h, i) => {
+        const target = map[i]
+        if (target === '__new__') {
+          const label = String(h || '').trim() || `Field ${i + 1}`
+          const reserved = ['id', 'createdat', 'archived']
+          let key = slugKey(label) || `field_${i}`
+          if (reserved.includes(key) || cfg.fields.some(f => f.key === key)) key = `${key}_${i}`
+          cfg.fields.push({ key, label, type: 'text', enabled: true, table: true, custom: true })
+          fieldsChanged = true
+          targets[i] = key
+        } else if (!target || target === '__ignore__') {
+          targets[i] = null
+        } else {
+          if (!cfg.fields.some(f => f.key === target)) {
+            throw {
+              status: 422,
+              message: `“${String(h || `Column ${i + 1}`).trim()}” is mapped to a field that no longer exists. Preview the sheet again.`,
+            }
+          }
+          targets[i] = target
+        }
       })
-      if (!rec.date) rec.date = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-      if (cfg.fields.some(f => f.key === 'status') && !rec.status) rec.status = defaultStatus
-      return any ? rec : null
-    }).filter(Boolean)
 
-    if (imported.length === 0) return res.status(422).json({ error: 'No rows to import — check your column mapping.' })
+      const assigned = targets.filter(Boolean)
+      const duplicate = assigned.find((key, index) => assigned.indexOf(key) !== index)
+      if (duplicate) {
+        const label = cfg.fields.find(field => field.key === duplicate)?.label || duplicate
+        throw { status: 422, message: `More than one column is mapped to “${label}”. Choose a different field or ignore one column.` }
+      }
+      if (!targets.includes('company')) {
+        throw { status: 422, message: 'Map one column to Company before importing.' }
+      }
 
-    if (fieldsChanged) await writeConfig(cfg)
-    const apps = await readApps()
-    await writeApps([...apps, ...imported])
-    res.json({ imported: imported.length, fieldsAdded: fieldsChanged })
+      const statusOptions = cfg.fields.find(f => f.key === 'status')?.options || []
+      const defaultStatus = statusOptions.includes('Applied') ? 'Applied' : (statusOptions[0] || 'Applied')
+      const now = new Date()
+      const imported = rows.map((row, rowIndex) => {
+        const record = { id: randomUUID(), createdAt: now.toISOString(), archived: false }
+        let any = false
+        targets.forEach((key, i) => {
+          if (key && row[i] != null && String(row[i]).trim() !== '') {
+            record[key] = String(row[i]).trim()
+            any = true
+          }
+        })
+        if (any && !record.company?.trim()) {
+          throw { status: 422, message: `Row ${rowIndex + 2} has no company. Add one in the sheet or exclude that row before importing.` }
+        }
+        if (!record.date) record.date = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+        if (cfg.fields.some(f => f.key === 'status') && !record.status) record.status = defaultStatus
+        return any ? record : null
+      }).filter(Boolean)
+
+      if (imported.length === 0) throw { status: 422, message: 'No rows to import — check your column mapping.' }
+      const apps = await readApps()
+      if (fieldsChanged) await writeConfig(cfg)
+      try {
+        await writeApps([...apps, ...imported])
+      } catch (error) {
+        if (fieldsChanged) await writeConfig(previousConfig)
+        throw error
+      }
+      return { imported: imported.length, fieldsAdded: fieldsChanged, config: cfg }
+    })
+    res.json(result)
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message || 'Import failed', detail: e.detail })
   }
@@ -661,6 +751,8 @@ app.post('/api/ai/ollama-pull', async (req, res) => {
   const base = String(req.body?.baseUrl || 'http://localhost:11434').replace(/\/$/, '')
   const model = String(req.body?.model || 'llama3.2').trim()
   try {
+    const status = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3000) })
+    if (!status.ok) throw new Error('Ollama is not responding.')
     // fire-and-forget: don't await the (large) download
     fetch(`${base}/api/pull`, {
       method: 'POST',
@@ -669,8 +761,14 @@ app.post('/api/ai/ollama-pull', async (req, res) => {
     }).catch(() => {})
     res.json({ started: true, model })
   } catch (e) {
-    res.status(500).json({ error: String(e.message || e) })
+    res.status(502).json({ error: `Could not start the download: ${String(e.message || e)}` })
   }
+})
+
+app.use('/api', (err, _req, res, next) => {
+  if (res.headersSent) return next(err)
+  console.error(err)
+  res.status(500).json({ error: 'Could not read or save local data.' })
 })
 
 // ─────────────────────────── Static app + fallback ───────────────────────
@@ -694,7 +792,7 @@ function openBrowser(url) {
 }
 
 await ensureData()
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`
   console.log(`\n  🎯  Queue is running at  ${url}`)
   console.log(`      Your data is stored locally in  data/applications.json`)

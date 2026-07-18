@@ -1,3 +1,5 @@
+import { useScrollFades } from '../lib/useScrollFades'
+
 const CARD_ACCENT = {
   Total:     '#818cf8',
   'To Apply': '#22d3ee',
@@ -10,6 +12,7 @@ const CARD_ACCENT = {
 }
 
 export default function StatCards({ applications, statusOptions, filter, onSelect }) {
+  const [cardsRef, fades] = useScrollFades()
   const counts = {}
   for (const s of statusOptions) counts[s] = 0
   for (const a of applications) if (a.status in counts) counts[a.status]++
@@ -20,7 +23,7 @@ export default function StatCards({ applications, statusOptions, filter, onSelec
   ]
 
   return (
-    <div className="stat-cards">
+    <div ref={cardsRef} className="stat-cards" data-fade-left={fades.left || undefined} data-fade-right={fades.right || undefined}>
       {cards.map(c => {
         const accent = CARD_ACCENT[c.label] || '#818cf8'
         const active = filter === c.key || (c.key === null && filter === null)
@@ -29,14 +32,15 @@ export default function StatCards({ applications, statusOptions, filter, onSelec
             key={c.label}
             className={`stat-card${active ? ' stat-card--active' : ''}`}
             style={{ '--card-accent': accent }}
+            aria-pressed={active}
             onClick={() => onSelect(c.key)}
           >
-            <span className="stat-bar" />
-            <span className="stat-num">{c.value}</span>
             <span className="stat-label">{c.label}</span>
+            <span className="stat-num">{c.value}</span>
           </button>
         )
       })}
     </div>
   )
 }
+import { useEffect, useRef, useState } from 'react'

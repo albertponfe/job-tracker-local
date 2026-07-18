@@ -7,7 +7,7 @@ function DetailValue({ field, app }) {
   if (field.key === 'status' && field.type === 'select') {
     const style = STATUS_STYLES[val] || DEFAULT_STATUS_STYLE
     return (
-      <span className="detail-status" style={{ background: style.bg, color: style.color, borderColor: style.border }}>
+      <span className="detail-status" style={{ '--select-tone': style.color, '--select-tint': style.bg, '--select-tone-light': style.lightColor, '--select-tint-light': style.lightBg }}>
         {val || '—'}
       </span>
     )

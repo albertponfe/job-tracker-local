@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { api } from './lib/api'
 import Header from './components/Header'
 import StatCards from './components/StatCards'
@@ -6,9 +6,12 @@ import AppTable from './components/AppTable'
 import AddForm from './components/AddForm'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
-import DetailModal from './components/DetailModal'
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('queue-theme')
+    return ['light', 'dark'].includes(saved) ? saved : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+  })
   const [config, setConfig] = useState(null)
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,24 +20,48 @@ export default function App() {
   const [editApp, setEditApp] = useState(null)
   const [settingsTab, setSettingsTab] = useState(null) // null = closed, else the tab to open
   const [confirmTarget, setConfirmTarget] = useState(null)
-  const [detailApp, setDetailApp] = useState(null)
   const [filter, setFilter] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
+  const errorTimer = useRef(null)
+  const themeFrame = useRef(null)
 
   const flashError = useCallback((msg) => {
     setError(msg)
-    setTimeout(() => setError(null), 4500)
+    clearTimeout(errorTimer.current)
+    errorTimer.current = setTimeout(() => setError(null), 4500)
+  }, [])
+
+  useEffect(() => () => {
+    clearTimeout(errorTimer.current)
+    cancelAnimationFrame(themeFrame.current)
+  }, [])
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme
+    localStorage.setItem('queue-theme', theme)
+  }, [theme])
+
+  const toggleTheme = useCallback(() => {
+    const root = document.documentElement
+    root.dataset.themeChanging = ''
+    setTheme(current => current === 'dark' ? 'light' : 'dark')
+    cancelAnimationFrame(themeFrame.current)
+    themeFrame.current = requestAnimationFrame(() => {
+      themeFrame.current = requestAnimationFrame(() => root.removeAttribute('data-theme-changing'))
+    })
   }, [])
 
   // silent = refresh data without flashing the full-screen loader (keeps modals mounted)
   const load = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
+      setError(null)
       const [cfg, apps] = await Promise.all([api.getConfig(), api.getApplications()])
       setConfig(cfg)
       setApplications(apps.applications || [])
-    } catch {
-      setError('Could not reach the local server. Make sure it is running (npm start).')
+    } catch (err) {
+      setError(err.message || 'Could not load your local data.')
     } finally {
       if (!silent) setLoading(false)
     }
@@ -42,36 +69,53 @@ export default function App() {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    const closeTopmost = event => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (confirmTarget) setConfirmTarget(null)
+      else if (settingsTab) setSettingsTab(null)
+      else if (showForm || editApp) { setShowForm(false); setEditApp(null) }
+    }
+    document.addEventListener('keydown', closeTopmost)
+    return () => document.removeEventListener('keydown', closeTopmost)
+  }, [confirmTarget, settingsTab, showForm, editApp])
+
   const handleSaved = () => { setShowForm(false); setEditApp(null); load(true) }
 
   const handleStatusChange = async (id, status) => {
-    const prev = applications
     setApplications(a => a.map(x => (x.id === id ? { ...x, status } : x)))
     try { await api.updateApplication(id, { status }) }
-    catch { setApplications(prev); flashError('Could not update status.') }
+    catch { load(true); flashError('Could not update status.') }
   }
 
   const handleArchive = async (id, archived) => {
-    const prev = applications
     setApplications(a => a.map(x => (x.id === id ? { ...x, archived } : x)))
     try { await api.updateApplication(id, { archived }) }
-    catch { setApplications(prev); flashError('Could not archive.') }
+    catch { load(true); flashError('Could not archive.') }
   }
 
   const handleDelete = async (id) => {
-    const prev = applications
     setApplications(a => a.filter(x => x.id !== id))
     try { await api.deleteApplication(id) }
-    catch { setApplications(prev); flashError('Could not delete.') }
+    catch { load(true); flashError('Could not delete.') }
   }
 
   const handleConfigSaved = (cfg) => { setConfig(cfg); load(true) }
 
-  if (loading || !config) {
+  if (loading) {
     return (
       <div className="loading-screen">
         <div className="spinner" />
         <p>Loading…</p>
+      </div>
+    )
+  }
+
+  if (!config) {
+    return (
+      <div className="loading-screen" role="alert">
+        <p>{error || 'Could not load your local data.'}</p>
+        <button className="empty-action" onClick={() => load()}>Try again</button>
       </div>
     )
   }
@@ -86,9 +130,11 @@ export default function App() {
       <Header
         onAdd={() => setShowForm(true)}
         onOpenSettings={setSettingsTab}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <main className="main">
-        {error && <div className="error-banner">{error}</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
 
         {statusField && (
           <StatCards
@@ -99,34 +145,20 @@ export default function App() {
           />
         )}
 
-        <div className="table-toolbar">
-          {filter && statusField && (
-            <div className="filter-bar" style={{ flex: 1, marginBottom: 0 }}>
-              <span>Showing <strong>{visible.length}</strong> {filter.toLowerCase()} application{visible.length !== 1 ? 's' : ''}</span>
-              <button className="filter-clear" onClick={() => setFilter(null)}>✕ Clear filter</button>
-            </div>
-          )}
-          {archivedApps.length > 0 && (
-            <button
-              className={`btn-archived-toggle${showArchived ? ' btn-archived-toggle--active' : ''}`}
-              onClick={() => setShowArchived(v => !v)}
-            >
-              {showArchived ? '✕ Hide archived' : `📦 Archived (${archivedApps.length})`}
-            </button>
-          )}
-        </div>
-
         <AppTable
           fields={config.fields}
           applications={visible}
           archivedApps={showArchived ? archivedApps : []}
+          archivedCount={archivedApps.length}
+          showArchived={showArchived}
+          onToggleArchived={() => setShowArchived(v => !v)}
           filter={filter}
-          onOpen={setDetailApp}
           onStatusChange={handleStatusChange}
           onEdit={setEditApp}
           onArchive={handleArchive}
           onDelete={setConfirmTarget}
           onAdd={() => setShowForm(true)}
+          onClearFilter={() => setFilter(null)}
         />
       </main>
 
@@ -160,14 +192,6 @@ export default function App() {
         />
       )}
 
-      {detailApp && (
-        <DetailModal
-          app={detailApp}
-          fields={config.fields}
-          onClose={() => setDetailApp(null)}
-          onEdit={(app) => { setDetailApp(null); setEditApp(app) }}
-        />
-      )}
     </div>
   )
 }

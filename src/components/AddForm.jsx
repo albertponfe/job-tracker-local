@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { api, EXTRACTABLE } from '../lib/api'
+import AnimatedHeight from './AnimatedHeight'
+import Modal from './Modal'
+import Select from './Select'
 
 export default function AddForm({ fields, aiEnabled, initialData = null, onClose, onSaved, onError }) {
   const editMode = initialData !== null
@@ -33,6 +36,7 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
   const urlVal = urlKey ? values[urlKey] : ''
 
   const handleExtract = async () => {
+    if (extracting) return
     if (!urlVal?.trim()) return
     setExtracting(true); setMsg(null)
     try {
@@ -56,14 +60,14 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
 
   const companyMissing = enabled.some(f => f.key === 'company') && !values.company?.trim()
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = close => async (e) => {
     e.preventDefault()
     if (companyMissing) return
     setSaving(true)
     try {
       if (editMode) await api.updateApplication(initialData.id, values)
       else await api.addApplication(values)
-      onSaved()
+      close(onSaved)
     } catch (err) {
       onError?.('Save failed: ' + err.message)
     } finally {
@@ -72,18 +76,18 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
+    <Modal onClose={onClose} labelledBy="application-dialog-title">
+      {close => <>
         <div className="modal-header">
-          <h2>{editMode ? 'Edit Application' : 'Add Application'}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h2 id="application-dialog-title">{editMode ? 'Edit Application' : 'Add Application'}</h2>
+          <button className="modal-close" aria-label="Close dialog" onClick={() => close()}>✕</button>
         </div>
 
         {urlField && (
           <>
             <div className="url-row">
               <input
-                className="input" type="url" placeholder={`Paste ${urlField.label.toLowerCase()}…`}
+                autoFocus className="input" type="url" placeholder={`Paste ${urlField.label.toLowerCase()}…`}
                 value={urlVal} onChange={set(urlKey)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleExtract() } }}
               />
@@ -91,30 +95,31 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
                 className="btn-extract"
                 onClick={handleExtract}
                 disabled={!urlVal?.trim() || extracting}
-                title={aiEnabled ? 'Auto-fill from the URL using AI' : 'Set up AI in Settings to enable this'}
+                title={aiEnabled ? 'Auto-fill from the URL using built-in extraction or AI' : 'Auto-fill supported job sites without AI'}
               >
                 {extracting ? <span className="spinner-sm" /> : '✦ Extract'}
               </button>
             </div>
-            {!aiEnabled && (
-              <p className="hint-line">
-                Links from <b>Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday</b> auto-fill
-                without any AI setup — just paste and hit Extract. For other sites, enable AI in <b>Settings → AI</b>, or type below.
-              </p>
-            )}
-            {msg && <p className={msg.type === 'ok' ? 'extract-success' : 'extract-error'}>{msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}</p>}
+            <AnimatedHeight className="extract-notes">
+              {!aiEnabled && (
+                <p className="hint-line">
+                  Links from <b>Greenhouse, Lever, Ashby, SmartRecruiters, Workable, and Workday</b> auto-fill
+                  without any AI setup — just paste and hit Extract. For other sites, click <b>AI</b> in the header, or type below.
+                </p>
+              )}
+              {msg && <p role={msg.type === 'ok' ? 'status' : 'alert'} className={msg.type === 'ok' ? 'extract-success' : 'extract-error'}>{msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}</p>}
+            </AnimatedHeight>
           </>
         )}
 
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid" onSubmit={handleSubmit(close)}>
           {gridFields.map(f => (
             <div className="field" key={f.key}>
-              <label>{f.label}{f.key === 'company' ? ' *' : ''}</label>
+              <label htmlFor={`field-${f.key}`}>{f.label}{f.key === 'company' ? ' *' : ''}</label>
               {f.type === 'select'
-                ? <select className="input" value={values[f.key]} onChange={set(f.key)}>
-                    {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                ? <Select id={`field-${f.key}`} value={values[f.key]} options={f.options || []} onChange={value => setValues(v => ({ ...v, [f.key]: value }))} ariaLabel={f.label} />
                 : <input
+                    id={`field-${f.key}`}
                     className="input"
                     type={f.type === 'email' ? 'email' : 'text'}
                     value={values[f.key]}
@@ -126,19 +131,19 @@ export default function AddForm({ fields, aiEnabled, initialData = null, onClose
 
           {textAreas.map(f => (
             <div className="field field--full" key={f.key}>
-              <label>{f.label}</label>
-              <textarea className="input textarea" rows={3} value={values[f.key]} onChange={set(f.key)} />
+              <label htmlFor={`field-${f.key}`}>{f.label}</label>
+              <textarea id={`field-${f.key}`} className="input textarea" rows={3} value={values[f.key]} onChange={set(f.key)} />
             </div>
           ))}
 
           <div className="form-actions">
-            <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-ghost" onClick={() => close()}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={saving || companyMissing}>
               {saving ? 'Saving…' : editMode ? 'Save Changes' : 'Save'}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </>}
+    </Modal>
   )
 }
