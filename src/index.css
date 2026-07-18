@@ -180,7 +180,7 @@ a:hover { text-decoration: underline; }
 .stat-cards[data-fade-left] { -webkit-mask-image: linear-gradient(to right, transparent, #000 44px); mask-image: linear-gradient(to right, transparent, #000 44px); }
 .stat-cards[data-fade-left][data-fade-right] { -webkit-mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent); }
 .stat-card {
-  min-width: 126px; min-height: 72px; flex: 1 0 auto; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4);
+  min-width: 126px; min-height: 72px; flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3) var(--space-4);
   overflow: hidden; background: var(--surface); text-align: left; transition: background-color var(--quick);
 }
 .stat-card { border-radius: 6px; }
@@ -189,7 +189,7 @@ a:hover { text-decoration: underline; }
 .stat-card:hover { background: color-mix(in srgb, var(--card-accent) 5%, var(--surface)); }
 .stat-card--active, .stat-card--active:hover { background: color-mix(in srgb, var(--card-accent) 8%, var(--surface)); }
 :root[data-theme='light'] .stat-card--active, :root[data-theme='light'] .stat-card--active:hover { background: color-mix(in srgb, var(--card-accent) 14%, var(--surface)); }
-.stat-label { min-width: 0; overflow: hidden; color: color-mix(in srgb, var(--card-accent) 70%, var(--muted)); font-size: 0.8rem; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.stat-label { min-width: 0; overflow: hidden; color: color-mix(in srgb, var(--card-accent) 70%, var(--muted)); font-size: 0.8rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
 .stat-card--active .stat-label { color: color-mix(in srgb, var(--card-accent) 75%, var(--text)); }
 .stat-num { flex: 0 0 auto; color: color-mix(in srgb, var(--card-accent) 72%, var(--text)); font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1; }
 
